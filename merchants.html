@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Merchants — PLM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Merchant Master</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ Add Merchant</button>
+</div>
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table">
+    <thead><tr><th>Code</th><th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for m in merchants %}
+      <tr>
+        <td style="color:var(--accent); font-weight:600;">{{ m.code }}</td>
+        <td>{{ m.name }}</td><td>{{ m.email or '—' }}</td><td>{{ m.phone or '—' }}</td><td>{{ m.department or '—' }}</td>
+        <td><span class="badge {% if m.active %}badge-green{% else %}badge-danger{% endif %}">{% if m.active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td style="display:flex;gap:4px;">
+          <button class="btn btn-muted btn-sm" onclick="editMerchant({{ m|tojson|e }})">✏ Edit</button>
+          {% if user.role == 'Admin' %}
+          <form method="post" action="/merchants/delete" style="display:inline;" onsubmit="return confirm('Deactivate this merchant?')">
+            <input type="hidden" name="merchant_id" value="{{ m.id }}">
+            <button class="btn btn-sm" style="background:#3a0000;color:#FF4444;border:1px solid #FF4444;" type="submit">🗑</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header"><span>New Merchant</span><button class="modal-close" onclick="closeModal('add-modal')">✕</button></div>
+    <div class="modal-body">
+      <form method="post" action="/merchants/create" id="add-form">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Code *</label><input class="form-control" name="code" required></div>
+          <div class="form-group"><label class="form-label">Name *</label><input class="form-control" name="name" required></div>
+          <div class="form-group"><label class="form-label">Email</label><input class="form-control" name="email" type="email"></div>
+          <div class="form-group"><label class="form-label">Phone</label><input class="form-control" name="phone"></div>
+          <div class="form-group full">
+            <label class="form-label">Department</label>
+            <select class="form-control" name="department">
+              <option value="">—</option>
+              {% for d in ['Woven','Knits','Denim','Lingerie','Accessories'] %}<option>{{ d }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('add-form').submit()">Save</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="edit-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header"><span>Edit Merchant</span><button class="modal-close" onclick="closeModal('edit-modal')">✕</button></div>
+    <div class="modal-body">
+      <form method="post" action="/merchants/update" id="edit-form">
+        <input type="hidden" name="merchant_id" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Code *</label><input class="form-control" name="code" id="edit-code" required></div>
+          <div class="form-group"><label class="form-label">Name *</label><input class="form-control" name="name" id="edit-name" required></div>
+          <div class="form-group"><label class="form-label">Email</label><input class="form-control" name="email" id="edit-email"></div>
+          <div class="form-group"><label class="form-label">Phone</label><input class="form-control" name="phone" id="edit-phone"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('edit-form').submit()">Save</button>
+    </div>
+  </div>
+</div>
+<style>.btn-danger{background:var(--danger);color:#fff;border:none;}.btn-danger:hover{background:#c0392b;}</style>
+<script>
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function editMerchant(m){
+  document.getElementById('edit-id').value=m.id;
+  document.getElementById('edit-code').value=m.code;
+  document.getElementById('edit-name').value=m.name;
+  document.getElementById('edit-email').value=m.email||'';
+  document.getElementById('edit-phone').value=m.phone||'';
+  openModal('edit-modal');
+}
+</script>
+{% endblock %}

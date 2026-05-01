@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Styles — PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Style Master</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ New Style</button>
+</div>
+
+<div class="search-bar">
+  <input class="search-input" id="search" placeholder="🔍 Search styles..." oninput="filterTable()">
+  <select class="search-input" style="width:160px;" id="filter-status" onchange="filterTable()">
+    <option value="">All Statuses</option>
+    <option>Design Intent</option><option>Sampling</option><option>QA</option>
+    <option>Approved</option><option>Dispatched</option><option>Cancelled</option>
+  </select>
+</div>
+
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table" id="styles-table">
+    <thead>
+      <tr>
+        <th>Style Code</th><th>Style Name</th><th>Brand</th><th>Season</th>
+        <th>Category</th><th>Color</th><th>Status</th><th>Created</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in styles %}
+      <tr data-status="{{ s.status }}" data-name="{{ s.style_name|lower }}" data-code="{{ s.style_code|lower }}">
+        <td><span style="color:var(--accent); font-weight:600;">{{ s.style_code }}</span></td>
+        <td>{{ s.style_name }}</td>
+        <td>{{ s.brand_name or '—' }}</td>
+        <td>{{ s.season or '—' }}</td>
+        <td>{{ s.garment_category or '—' }}</td>
+        <td>{{ s.color or '—' }}</td>
+        <td>
+          {% set sc = {'Design Intent':'badge-teal','Sampling':'badge-warning','QA':'badge-purple','Approved':'badge-green','Dispatched':'badge-teal','Cancelled':'badge-danger'} %}
+          <span class="badge {{ sc.get(s.status, 'badge-muted') }}">{{ s.status }}</span>
+        </td>
+        <td style="color:var(--text-muted); font-size:11px;">{{ s.created_at[:10] }}</td>
+        <td>
+          <button class="btn btn-muted btn-sm" onclick="editStyle({{ s|tojson|e }})">✏ Edit</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="action-bar">
+  <span class="count-label" id="count-label">{{ styles|length }} styles</span>
+</div>
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <span>New Style</span>
+      <button class="modal-close" onclick="closeModal('add-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/styles/create" id="add-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Style Code</label>
+            <input class="form-control" name="style_code" placeholder="e.g. LSA260001">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Style Name *</label>
+            <input class="form-control" name="style_name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Brand</label>
+            <select class="form-control" name="brand_id">
+              <option value="">— Select Brand —</option>
+              {% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Merchant</label>
+            <select class="form-control" name="merchant_id">
+              <option value="">— Select Merchant —</option>
+              {% for m in merchants %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Season</label>
+            <select class="form-control" name="season">
+              <option value="">—</option>
+              {% for s in ['AW26','SS26','H1 26','H2 26','AW27','SS27','H1 27','H2 27','FW26','FW27'] %}<option>{{ s }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Garment Category</label>
+            <select class="form-control" name="garment_category">
+              <option value="">—</option>
+              {% for c in ['T-Shirt','Polo Shirt','Shirt (Woven)','Blouse','Dress','Trousers','Shorts','Jeans','Jacket','Coat','Hoodie','Knitwear','Other'] %}
+              <option>{{ c }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fabric</label>
+            <input class="form-control" name="fabric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Color</label>
+            <input class="form-control" name="color">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target FOB (USD)</label>
+            <input class="form-control" name="target_fob" type="number" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Dispatch Date</label>
+            <input class="form-control" name="target_dispatch" type="date">
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Design Notes</label>
+            <textarea class="form-control" name="design_notes"></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('add-form').submit()">Create Style</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <span>Edit Style — <span id="edit-code"></span></span>
+      <button class="modal-close" onclick="closeModal('edit-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/styles/update" id="edit-form">
+        <input type="hidden" name="style_id" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label class="form-label">Style Name *</label>
+            <input class="form-control" name="style_name" id="edit-name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Brand</label>
+            <select class="form-control" name="brand_id" id="edit-brand">
+              <option value="">— Select Brand —</option>
+              {% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Season</label>
+            <select class="form-control" name="season" id="edit-season">
+              {% for s in ['AW26','SS26','H1 26','H2 26','AW27','SS27','H1 27','H2 27','FW26','FW27'] %}<option>{{ s }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Color</label>
+            <input class="form-control" name="color" id="edit-color">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select class="form-control" name="status" id="edit-status">
+              {% for s in ['Design Intent','Sampling','QA','Approved','Dispatched','Cancelled'] %}<option>{{ s }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Design Notes</label>
+            <textarea class="form-control" name="design_notes" id="edit-notes"></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('edit-form').submit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).style.display='flex'; }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+
+function editStyle(s) {
+  document.getElementById('edit-id').value = s.id;
+  document.getElementById('edit-code').textContent = s.style_code;
+  document.getElementById('edit-name').value = s.style_name;
+  document.getElementById('edit-color').value = s.color || '';
+  document.getElementById('edit-notes').value = s.design_notes || '';
+  document.getElementById('edit-season').value = s.season || '';
+  document.getElementById('edit-status').value = s.status || '';
+  if(s.brand_id) document.getElementById('edit-brand').value = s.brand_id;
+  openModal('edit-modal');
+}
+
+function filterTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const status = document.getElementById('filter-status').value;
+  const rows = document.querySelectorAll('#styles-table tbody tr');
+  let visible = 0;
+  rows.forEach(r => {
+    const matchSearch = !search || r.dataset.name.includes(search) || r.dataset.code.includes(search);
+    const matchStatus = !status || r.dataset.status === status;
+    r.style.display = (matchSearch && matchStatus) ? '' : 'none';
+    if(matchSearch && matchStatus) visible++;
+  });
+  document.getElementById('count-label').textContent = visible + ' styles';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Wash Tracking — SampleFlow PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">🌊 Wash Tracking</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ Add Wash Record</button>
+</div>
+
+<!-- Wash OTIF Mini Card -->
+{% set wotif = wash_otif %}
+{% set wc = '#10B981' if wotif.otif_pct >= 80 else ('#F59E0B' if wotif.otif_pct >= 60 else '#EF4444') %}
+<div style="padding:0 24px 12px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+  <div class="otif-card" style="border-left:3px solid {{ wc }};">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Wash OTIF</div>
+    <div style="font-size:32px;font-weight:700;color:{{ wc }};line-height:1.2;">{{ wotif.otif_pct }}%</div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ wotif.otif_pct }}%;background:{{ wc }};"></div></div>
+    <div class="stat-row"><div class="stat-mini">On Time: <span>{{ wotif.on_time }}</span></div><div class="stat-mini">Total: <span>{{ wotif.total }}</span></div></div>
+  </div>
+  <div class="otif-card" style="border-left:3px solid var(--success);">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Pass</div>
+    <div style="font-size:32px;font-weight:700;color:var(--success);line-height:1.2;">{{ records|selectattr('result','equalto','Pass')|list|length }}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">approved</div>
+  </div>
+  <div class="otif-card" style="border-left:3px solid var(--danger);">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Fail</div>
+    <div style="font-size:32px;font-weight:700;color:var(--danger);line-height:1.2;">{{ records|selectattr('result','equalto','Fail')|list|length }}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">rejected</div>
+  </div>
+  <div class="otif-card" style="border-left:3px solid var(--warning);">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Rework</div>
+    <div style="font-size:32px;font-weight:700;color:var(--warning);line-height:1.2;">{{ records|selectattr('result','equalto','Rework')|list|length }}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">need redo</div>
+  </div>
+  <div class="otif-card" style="border-left:3px solid var(--text-muted);">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Pending</div>
+    <div style="font-size:32px;font-weight:700;color:var(--text-muted);line-height:1.2;">{{ records|selectattr('result','equalto','Pending')|list|length }}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">in progress</div>
+  </div>
+</div>
+
+<!-- Filter row -->
+<div style="padding:0 24px 10px;display:flex;gap:10px;align-items:center;">
+  <input class="search-input" id="wash-search" placeholder="🔍 Search style, customer..." oninput="filterWash()" style="width:260px;">
+  <select class="search-input" id="wash-result" onchange="filterWash()" style="width:130px;">
+    <option value="">All Results</option>
+    <option>Pass</option><option>Fail</option><option>Pending</option><option>Rework</option>
+  </select>
+  <select class="search-input" id="wash-type-filter" onchange="filterWash()" style="width:180px;">
+    <option value="">All Wash Types</option>
+    {% for t in ['BASIC','NON-WASH','RFD/OD','DENIM -CRITICAL','DENIM - NON CRITICAL','NON-DENIM CRITICAL','TBC'] %}
+    <option>{{ t }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<!-- Table -->
+<div class="table-container" style="margin:0 24px 20px;">
+  <table class="data-table" id="wash-table">
+    <thead>
+      <tr>
+        <th>Style Code</th><th>Customer</th><th>Season</th><th>Color</th>
+        <th>Wash Type</th><th>Lead (d)</th><th>Sent</th><th>Expected RCV</th>
+        <th>Received</th><th>Delay</th><th>Result</th><th>Action</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in records %}
+      {% set rc = {'Pass':'badge-green','Fail':'badge-danger','Pending':'badge-muted','Rework':'badge-warning'} %}
+      <tr data-style="{{ (w.style_code or '')|lower }}"
+          data-customer="{{ (w.customer or '')|lower }}"
+          data-result="{{ (w.result or 'Pending')|lower }}"
+          data-washtype="{{ (w.wash_type or '')|lower }}">
+        <td style="color:var(--accent);font-weight:600;">{{ w.style_code or '—' }}</td>
+        <td>{{ w.customer or '—' }}</td>
+        <td style="font-size:11px;color:var(--text-muted);">{{ w.season or '—' }}</td>
+        <td style="font-size:11px;">{{ w.color or '—' }}</td>
+        <td><span class="badge badge-blue">{{ w.wash_type or '—' }}</span></td>
+        <td style="text-align:center;color:var(--text-muted);font-size:12px;">
+          {{ wash_lead_times.get(w.wash_type, '—') }}
+        </td>
+        <td style="font-size:11px;color:var(--text-muted);">{{ w.sent_date or '—' }}</td>
+        <td style="font-size:11px;color:var(--accent2);">{{ w._expected_rcv or '—' }}</td>
+        <td style="font-size:11px;color:var(--text-muted);">{{ w.received_date or '—' }}</td>
+        <td>
+          {% if w._delay %}
+          <span class="delay-{{ w._delay.status }}">{{ w._delay.label }}</span>
+          {% else %}
+          <span class="delay-no_data">—</span>
+          {% endif %}
+        </td>
+        <td><span class="badge {{ rc.get(w.result or 'Pending','badge-muted') }}">{{ w.result or 'Pending' }}</span></td>
+        <td>
+          {% if not w.received_date %}
+          <button class="btn btn-primary btn-sm" onclick="openUpdateModal({{ w|tojson|e }})">📥 Receive</button>
+          {% else %}
+          <button class="btn btn-muted btn-sm" onclick="openUpdateModal({{ w|tojson|e }})">✏ Edit</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not records %}
+      <tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No wash records yet. Add one to get started.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Wash Lead Time Reference -->
+<div style="padding:0 24px 20px;">
+  <div class="card">
+    <div class="card-header" style="cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+      <span style="color:var(--text-muted);">ℹ️</span> Wash Lead Time Reference (from Excel Tracker)
+      <span style="float:right;color:var(--text-muted);font-size:11px;">▼ expand</span>
+    </div>
+    <div class="card-body" style="display:none;grid-template-columns:repeat(4,1fr);gap:12px;">
+      {% for wt, days in wash_lead_times.items() %}
+      <div style="background:var(--bg-mid);border-radius:6px;padding:10px;border:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:700;color:var(--accent2);">{{ wt }}</div>
+        <div style="font-size:22px;font-weight:700;margin-top:4px;">{{ days }}<span style="font-size:12px;color:var(--text-muted);">d</span></div>
+        <div style="font-size:10px;color:var(--text-muted);">expected lead time</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span>New Wash Record</span>
+      <button class="modal-close" onclick="closeModal('add-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/wash/create" id="add-form">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Style Code</label><input class="form-control" name="style_code"></div>
+          <div class="form-group"><label class="form-label">Customer</label><input class="form-control" name="customer"></div>
+          <div class="form-group"><label class="form-label">Merchant</label><input class="form-control" name="merchant"></div>
+          <div class="form-group"><label class="form-label">Season</label><input class="form-control" name="season"></div>
+          <div class="form-group"><label class="form-label">Color</label><input class="form-control" name="color"></div>
+          <div class="form-group"><label class="form-label">Fabric Type</label><input class="form-control" name="fabric_type"></div>
+          <div class="form-group"><label class="form-label">Sample Type</label><input class="form-control" name="sample_type"></div>
+          <div class="form-group">
+            <label class="form-label">Wash Type</label>
+            <select class="form-control" name="wash_type" id="form-wash-type" onchange="updateLeadPreview()">
+              {% for t in ['BASIC','NON-WASH','RFD/OD','DENIM -CRITICAL','DENIM - NON CRITICAL','NON-DENIM CRITICAL','TBC'] %}
+              <option>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Required Wash</label><input class="form-control" name="required_wash"></div>
+          <div class="form-group"><label class="form-label">Wash Unit</label>
+            <select class="form-control" name="wash_unit">
+              <option value="">— Select —</option>
+              <option>SAMUDRA WASH PLANT</option>
+              <option>GLOBAL WASH UNIT</option>
+              <option>RAMDHAN WASH</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Result</label>
+            <select class="form-control" name="result">
+              {% for r in ['Pending','Pass','Fail','Rework'] %}<option>{{ r }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sent Date</label>
+            <input class="form-control" name="sent_date" type="date" id="form-sent-date" oninput="updateLeadPreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Actual Received Date <span id="lead-preview" style="color:var(--accent2);font-size:10px;"></span></label>
+            <input class="form-control" name="received_date" type="date" placeholder="Leave blank if not yet received">
+          </div>
+          <div class="form-group full"><label class="form-label">Comments</label><textarea class="form-control" name="comments" rows="2"></textarea></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('add-form').submit()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update Wash Modal -->
+<div class="modal-overlay" id="update-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span>📥 Update Wash Record — <span id="upd-style"></span></span>
+      <button class="modal-close" onclick="closeModal('update-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" id="update-form">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Actual Received Date *</label>
+          <input class="form-control" name="received_date" type="date" id="upd-received" required>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Result *</label>
+          <select class="form-control" name="result" id="upd-result">
+            <option>Pass</option><option>Fail</option><option>Rework</option><option>Pending</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Comments</label>
+          <textarea class="form-control" name="comments" rows="2" id="upd-comments"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('update-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('update-form').submit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const LEAD_TIMES = {{ wash_lead_times|tojson }};
+
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+
+function updateLeadPreview() {
+  const wt = document.getElementById('form-wash-type').value;
+  const sent = document.getElementById('form-sent-date').value;
+  const lead = LEAD_TIMES[wt] ?? 3;
+  const preview = document.getElementById('lead-preview');
+  if (sent) {
+    const d = new Date(sent);
+    d.setDate(d.getDate() + lead);
+    preview.textContent = `→ Expected: ${d.toISOString().split('T')[0]} (${lead}d lead)`;
+  } else {
+    preview.textContent = `Lead time: ${lead} day(s)`;
+  }
+}
+
+function updateWash(id, styleCode, expectedRcv) {
+  document.getElementById('upd-style').textContent = styleCode;
+  document.getElementById('update-form').action = '/wash/update/' + id;
+  if(expectedRcv) document.getElementById('upd-received').value = expectedRcv;
+  openModal('update-modal');
+}
+
+function filterWash() {
+  const search = document.getElementById('wash-search').value.toLowerCase();
+  const result = document.getElementById('wash-result').value.toLowerCase();
+  const washType = document.getElementById('wash-type-filter').value.toLowerCase();
+  document.querySelectorAll('#wash-table tbody tr').forEach(row => {
+    const matchSearch = !search || row.dataset.style.includes(search) || row.dataset.customer.includes(search);
+    const matchResult = !result || row.dataset.result === result;
+    const matchType = !washType || row.dataset.washtype === washType;
+    row.style.display = (matchSearch && matchResult && matchType) ? '' : 'none';
+  });
+}
+</script>
+<!-- Update Wash Modal -->
+<div class="modal-overlay" id="update-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span>Update Wash Record — <span id="upd-style"></span></span>
+      <button class="modal-close" onclick="closeModal('update-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" id="update-form">
+        <input type="hidden" name="record_id" id="upd-id">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Wash Unit</label>
+          <div id="upd-washtype" style="padding:6px 10px;background:var(--bg-mid);border-radius:6px;font-size:12px;color:var(--accent2);"></div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Actual Received Date *</label>
+          <input class="form-control" name="received_date" type="date" id="upd-rcv" required>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Result *</label>
+          <select class="form-control" name="result" id="upd-result">
+            <option>Pass</option><option>Fail</option><option>Rework</option><option>Pending</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Comments</label>
+          <textarea class="form-control" name="comments" id="upd-comments" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('update-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitUpdate()">💾 Save Update</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openUpdateModal(w) {
+  document.getElementById('upd-id').value = w.id;
+  document.getElementById('upd-style').textContent = w.style_code + ' — ' + (w.wash_type || '');
+  document.getElementById('upd-washtype').textContent = (w.wash_unit || '—') + ' | ' + (w.wash_type || '—');
+  document.getElementById('upd-rcv').value = w.received_date || '';
+  document.getElementById('upd-result').value = w.result || 'Pending';
+  document.getElementById('upd-comments').value = w.comments || '';
+  openModal('update-modal');
+}
+function submitUpdate() {
+  const id = document.getElementById('upd-id').value;
+  document.getElementById('update-form').action = '/wash/update/' + id;
+  document.getElementById('update-form').method = 'post';
+  document.getElementById('update-form').submit();
+}
+</script>
+{% endblock %}

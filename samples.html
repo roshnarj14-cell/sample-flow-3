@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Samples — PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Sample Tracker</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ New Sample</button>
+</div>
+
+<div class="search-bar">
+  <input class="search-input" id="search" placeholder="🔍 Search samples..." oninput="filterTable()">
+  <select class="search-input" style="width:160px;" id="filter-dept" onchange="filterTable()">
+    <option value="">All Departments</option>
+    {% for d in ['Design','Sampling','Washing','Cutting','Stitching','Finishing','QA','Dispatch','Brand'] %}
+    <option>{{ d }}</option>{% endfor %}
+  </select>
+  <select class="search-input" style="width:150px;" id="filter-status" onchange="filterTable()">
+    <option value="">All Statuses</option>
+    {% for s in ['Pending','In Progress','QA Hold','Approved','Rejected','Dispatched'] %}
+    <option>{{ s }}</option>{% endfor %}
+  </select>
+</div>
+
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table" id="samples-table">
+    <thead>
+      <tr>
+        <th>Sample ID</th><th>Style Code</th><th>Brand</th><th>Type</th>
+        <th>Size</th><th>Current Dept</th><th>Status</th><th>Due Date</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in samples %}
+      <tr data-id="{{ s.sample_id|lower }}" data-style="{{ s.style_code|lower }}" data-dept="{{ s.current_dept }}" data-status="{{ s.current_status }}">
+        <td><span style="color:var(--accent); font-weight:600;">{{ s.sample_id }}</span></td>
+        <td>{{ s.style_code }}</td>
+        <td>{{ s.brand_name or '—' }}</td>
+        <td><span class="badge badge-blue">{{ s.sample_type }}</span></td>
+        <td>{{ s.size or '—' }}</td>
+        <td>
+          {% set dc = {'Design':'#3B82F6','Sampling':'#F59E0B','QA':'#10B981','Dispatch':'#34D399','Wash':'#A78BFA'} %}
+          <span style="color:{{ dc.get(s.current_dept, '#94A3B8') }}; font-weight:600;">{{ s.current_dept }}</span>
+        </td>
+        <td>
+          {% set sc = {'Approved':'badge-green','Rejected':'badge-danger','In Progress':'badge-warning','QA Hold':'badge-warning','Pending':'badge-muted','Dispatched':'badge-teal'} %}
+          <span class="badge {{ sc.get(s.current_status, 'badge-muted') }}">{{ s.current_status }}</span>
+        </td>
+        <td style="color:var(--text-muted); font-size:11px;">{{ s.due_date or '—' }}</td>
+        <td>
+          <button class="btn btn-muted btn-sm" onclick="moveSample({{ s|tojson|e }})">📦 Move</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="action-bar">
+  <span class="count-label" id="count-label">{{ samples|length }} samples</span>
+</div>
+
+<!-- Add Sample Modal -->
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <span>New Sample</span>
+      <button class="modal-close" onclick="closeModal('add-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/samples/create" id="add-form">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label class="form-label">Style *</label>
+            <select class="form-control" name="style_id" required>
+              <option value="">— Select Style —</option>
+              {% for s in styles %}<option value="{{ s.id }}">{{ s.style_code }} — {{ s.style_name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sample Type *</label>
+            <select class="form-control" name="sample_type" required>
+              {% for t in ['Proto','Fit','Salesman','PP','TOP','Bulk'] %}<option>{{ t }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Size</label>
+            <input class="form-control" name="size" placeholder="e.g. M, L, XL">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Color</label>
+            <input class="form-control" name="color">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Due Date</label>
+            <input class="form-control" name="due_date" type="date">
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Remarks</label>
+            <textarea class="form-control" name="remarks"></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('add-form').submit()">Create Sample</button>
+    </div>
+  </div>
+</div>
+
+<!-- Move Sample Modal -->
+<div class="modal-overlay" id="move-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span>Move Sample — <span id="move-sample-id"></span></span>
+      <button class="modal-close" onclick="closeModal('move-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/samples/move" id="move-form">
+        <input type="hidden" name="sample_db_id" id="move-db-id">
+        <div style="background:var(--bg-mid); padding:12px; border-radius:8px; margin-bottom:16px;">
+          <div style="font-size:12px; color:var(--text-muted);">Current Department</div>
+          <div style="font-size:16px; font-weight:700; color:var(--accent);" id="move-current-dept"></div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Move To Department *</label>
+          <select class="form-control" name="to_dept" required>
+            {% for d in ['Design','Sampling','Washing','Cutting','Stitching','Finishing','QA','Dispatch','Brand'] %}
+            <option>{{ d }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Set Status</label>
+          <select class="form-control" name="status">
+            {% for s in ['In Progress','Pending','QA Hold','Approved','Rejected'] %}<option>{{ s }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <input class="form-control" name="notes">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('move-modal')">Cancel</button>
+      <button class="btn btn-success" onclick="document.getElementById('move-form').submit()">📦 Move Sample</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).style.display='flex'; }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+
+function moveSample(s) {
+  document.getElementById('move-sample-id').textContent = s.sample_id;
+  document.getElementById('move-db-id').value = s.id;
+  document.getElementById('move-current-dept').textContent = s.current_dept;
+  openModal('move-modal');
+}
+
+function filterTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const dept = document.getElementById('filter-dept').value;
+  const status = document.getElementById('filter-status').value;
+  const rows = document.querySelectorAll('#samples-table tbody tr');
+  let visible = 0;
+  rows.forEach(r => {
+    const ms = !search || r.dataset.id.includes(search) || r.dataset.style.includes(search);
+    const md = !dept || r.dataset.dept === dept;
+    const mst = !status || r.dataset.status === status;
+    r.style.display = (ms && md && mst) ? '' : 'none';
+    if(ms && md && mst) visible++;
+  });
+  document.getElementById('count-label').textContent = visible + ' samples';
+}
+</script>
+{% endblock %}

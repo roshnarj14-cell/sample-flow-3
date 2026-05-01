@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Dispatch — PLM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Sample Dispatch</h1>
+</div>
+<div class="tab-strip">
+  <button class="tab-btn {% if tab=='history' %}active{% endif %}" onclick="location.href='/dispatch?tab=history'">Dispatch History</button>
+  <button class="tab-btn {% if tab=='pending' %}active{% endif %}" onclick="location.href='/dispatch?tab=pending'">Pending Dispatch</button>
+</div>
+<div class="table-container" style="margin:16px 24px;">
+  {% if tab == 'history' %}
+  <table class="data-table">
+    <thead><tr><th>Dispatch No</th><th>Sample ID</th><th>Style</th><th>Brand</th><th>Recipient</th><th>Courier</th><th>Tracking</th><th>Date</th><th>By</th></tr></thead>
+    <tbody>
+      {% for d in dispatches %}
+      <tr>
+        <td style="color:var(--success); font-weight:600;">{{ d.dispatch_no }}</td>
+        <td>{{ d.sample_code }}</td><td>{{ d.style_code }}</td><td>{{ d.brand_name or '—' }}</td>
+        <td>{{ d.recipient }}</td><td>{{ d.courier or '—' }}</td><td>{{ d.tracking_no or '—' }}</td>
+        <td style="font-size:11px; color:var(--text-muted);">{{ d.dispatch_date[:10] if d.dispatch_date else '' }}</td>
+        <td style="color:var(--text-muted);">{{ d.dispatched_by_name or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <table class="data-table">
+    <thead><tr><th>Sample ID</th><th>Style Code</th><th>Brand</th><th>Type</th><th>Size</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for s in pending %}
+      <tr>
+        <td style="color:var(--accent); font-weight:600;">{{ s.sample_id }}</td>
+        <td>{{ s.style_code }}</td><td>{{ s.brand_name or '—' }}</td>
+        <td><span class="badge badge-blue">{{ s.sample_type }}</span></td>
+        <td>{{ s.size or '—' }}</td>
+        <td><span class="badge badge-green">{{ s.current_status }}</span></td>
+        <td><button class="btn btn-success btn-sm" onclick="dispatchSample({{ s|tojson|e }})">📦 Dispatch</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+<!-- Dispatch Modal -->
+<div class="modal-overlay" id="dispatch-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <span>Dispatch Sample — <span id="disp-sample-id"></span></span>
+      <button class="modal-close" onclick="closeModal('dispatch-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/dispatch/submit" id="dispatch-form">
+        <input type="hidden" name="sample_db_id" id="disp-db-id">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label class="form-label">Recipient *</label>
+            <input class="form-control" name="recipient" required>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Address</label>
+            <input class="form-control" name="address">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Courier</label>
+            <select class="form-control" name="courier">
+              <option value="">—</option>
+              {% for c in ['DHL','FedEx','UPS','Aramex','TNT','Speed Post','Hand Delivery','Other'] %}<option>{{ c }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tracking No</label>
+            <input class="form-control" name="tracking_no">
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" name="notes" rows="2"></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('dispatch-modal')">Cancel</button>
+      <button class="btn btn-success" onclick="document.getElementById('dispatch-form').submit()">📦 Confirm Dispatch</button>
+    </div>
+  </div>
+</div>
+<script>
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function dispatchSample(s){
+  document.getElementById('disp-sample-id').textContent=s.sample_id;
+  document.getElementById('disp-db-id').value=s.id;
+  openModal('dispatch-modal');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Alerts — SampleFlow PLM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <h1 class="page-title">🔔 Alerts</h1>
+    {% if counts.critical > 0 %}
+    <span class="delay-critical">{{ counts.critical }} Critical</span>
+    {% endif %}
+    {% if counts.warning > 0 %}
+    <span class="delay-overdue">{{ counts.warning }} Warnings</span>
+    {% endif %}
+    {% if counts.info > 0 %}
+    <span class="badge badge-blue">{{ counts.info }} Info</span>
+    {% endif %}
+  </div>
+  <button class="btn btn-muted" onclick="location.reload()">↻ Refresh</button>
+</div>
+
+<!-- Alert Type Filter Tabs -->
+<div class="tab-strip" style="padding:0 24px;margin-bottom:0;">
+  <button class="tab-btn active" onclick="filterAlerts('all',this)">All ({{ counts.total }})</button>
+  <button class="tab-btn" onclick="filterAlerts('critical',this)">🚨 Critical ({{ counts.critical }})</button>
+  <button class="tab-btn" onclick="filterAlerts('warning',this)">⚠️ Warnings ({{ counts.warning }})</button>
+  <button class="tab-btn" onclick="filterAlerts('info',this)">ℹ️ Info ({{ counts.info }})</button>
+</div>
+
+<div style="padding:16px 24px;">
+  {% if not alerts %}
+  <div style="text-align:center;padding:60px 20px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);">
+    <div style="font-size:48px;margin-bottom:12px;">✅</div>
+    <div style="font-size:18px;font-weight:600;color:var(--success);">All Clear!</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:8px;">No active alerts. Everything is on track.</div>
+  </div>
+  {% else %}
+
+  <!-- Delay Alerts -->
+  {% set delay_alerts = alerts | selectattr('type','in',['delay','due_soon']) | list %}
+  {% if delay_alerts %}
+  <div class="alert-section" data-section="delay" style="margin-bottom:20px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--border);">⏰ Schedule Delays ({{ delay_alerts|length }})</div>
+    {% for a in delay_alerts %}
+    <div class="alert-item {{ a.level }}" data-level="{{ a.level }}">
+      <div class="alert-icon">{{ a.icon }}</div>
+      <div style="flex:1;">
+        <div class="alert-title">{{ a.title }}</div>
+        <div class="alert-msg">{{ a.message }}</div>
+      </div>
+      <a href="{{ a.link }}" class="btn btn-muted" style="font-size:11px;padding:4px 10px;flex-shrink:0;">View →</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Wash Alerts -->
+  {% set wash_alerts = alerts | selectattr('type','equalto','wash_delay') | list %}
+  {% if wash_alerts %}
+  <div class="alert-section" data-section="wash" style="margin-bottom:20px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--border);">🌊 Wash Delays ({{ wash_alerts|length }})</div>
+    {% for a in wash_alerts %}
+    <div class="alert-item {{ a.level }}" data-level="{{ a.level }}">
+      <div class="alert-icon">{{ a.icon }}</div>
+      <div style="flex:1;">
+        <div class="alert-title">{{ a.title }}</div>
+        <div class="alert-msg">{{ a.message }}</div>
+      </div>
+      <a href="{{ a.link }}" class="btn btn-muted" style="font-size:11px;padding:4px 10px;flex-shrink:0;">View →</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- QA Alerts -->
+  {% set qa_alerts = alerts | selectattr('type','equalto','qa_stuck') | list %}
+  {% if qa_alerts %}
+  <div class="alert-section" data-section="qa" style="margin-bottom:20px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--border);">🔍 QA Stuck ({{ qa_alerts|length }})</div>
+    {% for a in qa_alerts %}
+    <div class="alert-item {{ a.level }}" data-level="{{ a.level }}">
+      <div class="alert-icon">{{ a.icon }}</div>
+      <div style="flex:1;">
+        <div class="alert-title">{{ a.title }}</div>
+        <div class="alert-msg">{{ a.message }}</div>
+      </div>
+      <a href="{{ a.link }}" class="btn btn-muted" style="font-size:11px;padding:4px 10px;flex-shrink:0;">View →</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Stage Stuck + Missing Data -->
+  {% set other_alerts = alerts | rejectattr('type','in',['delay','due_soon','wash_delay','qa_stuck']) | list %}
+  {% if other_alerts %}
+  <div class="alert-section" data-section="other" style="margin-bottom:20px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid var(--border);">📋 Other Alerts ({{ other_alerts|length }})</div>
+    {% for a in other_alerts %}
+    <div class="alert-item {{ a.level }}" data-level="{{ a.level }}">
+      <div class="alert-icon">{{ a.icon }}</div>
+      <div style="flex:1;">
+        <div class="alert-title">{{ a.title }}</div>
+        <div class="alert-msg">{{ a.message }}</div>
+      </div>
+      <a href="{{ a.link }}" class="btn btn-muted" style="font-size:11px;padding:4px 10px;flex-shrink:0;">View →</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+
+<!-- How OTIF & Alerts are calculated -->
+<div style="padding:0 24px 24px;">
+  <div class="card">
+    <div class="card-header"><span style="color:#94A3B8;">ℹ️</span> Alert & OTIF Logic Reference</div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;font-size:12px;">
+      <div>
+        <div style="font-weight:700;color:var(--accent2);margin-bottom:6px;">OTIF Formula</div>
+        <div style="color:var(--text-muted);line-height:1.6;">
+          OTIF% = (On Time Completions ÷ Total Completions) × 100<br><br>
+          <b style="color:var(--text);">Sample OTIF:</b> Indent target_dispatch vs actual completion date<br><br>
+          <b style="color:var(--text);">Wash OTIF:</b> Wash sent_date + lead_time vs received_date
+        </div>
+      </div>
+      <div>
+        <div style="font-weight:700;color:var(--warning);margin-bottom:6px;">Wash Lead Times</div>
+        <div style="color:var(--text-muted);line-height:1.8;">
+          BASIC: 1 day &nbsp;|&nbsp; NON-WASH: 0<br>
+          RFD/OD: 3 days<br>
+          DENIM-CRITICAL: 5 days<br>
+          DENIM-NON CRITICAL: 3 days<br>
+          NON-DENIM CRITICAL: 4 days
+        </div>
+      </div>
+      <div>
+        <div style="font-weight:700;color:var(--danger);margin-bottom:6px;">Alert Escalation (T&A)</div>
+        <div style="color:var(--text-muted);line-height:1.8;">
+          <span style="color:#10B981;">On Time</span> → Junior Manager<br>
+          <span style="color:#EAB308;">Due in 1-2d</span> → Warning raised<br>
+          <span style="color:#F59E0B;">Overdue</span> → Senior Manager alert<br>
+          <span style="color:#EF4444;">Critical (+3d)</span> → Head / Director notified
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function filterAlerts(level, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.alert-item').forEach(item=>{
+    if(level==='all') item.style.display='flex';
+    else item.style.display = item.dataset.level===level ? 'flex' : 'none';
+  });
+  // Hide empty sections
+  document.querySelectorAll('.alert-section').forEach(sec=>{
+    const visible = sec.querySelectorAll('.alert-item:not([style*="none"])').length;
+    sec.style.display = visible > 0 ? 'block' : 'none';
+  });
+}
+</script>
+{% endblock %}

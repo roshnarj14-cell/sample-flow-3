@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Analytics — SampleFlow PLM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📊 Analytics Dashboard</h1>
+  <span style="font-size:12px;color:var(--text-muted);">PLM Single Source of Truth — Live Metrics</span>
+</div>
+
+<!-- OTIF Summary Row -->
+<div style="padding:0 24px 12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+  {% set sc='#10B981' if sample_otif.otif_pct>=80 else ('#F59E0B' if sample_otif.otif_pct>=60 else '#EF4444') %}
+  <div class="otif-card" style="text-align:center;">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Sample OTIF</div>
+    <div style="font-size:44px;font-weight:700;color:{{ sc }};line-height:1.1;">{{ sample_otif.otif_pct }}%</div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ sample_otif.otif_pct }}%;background:{{ sc }};"></div></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">{{ sample_otif.on_time }}/{{ sample_otif.total }} on time</div>
+  </div>
+  {% set wc='#10B981' if wash_otif.otif_pct>=80 else ('#F59E0B' if wash_otif.otif_pct>=60 else '#EF4444') %}
+  <div class="otif-card" style="text-align:center;">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Wash OTIF</div>
+    <div style="font-size:44px;font-weight:700;color:{{ wc }};line-height:1.1;">{{ wash_otif.otif_pct }}%</div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ wash_otif.otif_pct }}%;background:{{ wc }};"></div></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">{{ wash_otif.on_time }}/{{ wash_otif.total }} on time</div>
+  </div>
+  <div class="otif-card" style="text-align:center;">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Avg QA Approval</div>
+    <div style="font-size:44px;font-weight:700;color:#A78BFA;line-height:1.1;">{{ avg_approval }}<span style="font-size:16px;">d</span></div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ [avg_approval*5,100]|min }}%;background:#A78BFA;"></div></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">days from creation to pass</div>
+  </div>
+  <div class="otif-card" style="text-align:center;">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Pipeline Health</div>
+    {% set sp = stage_progress %}
+    {% set total_sp = sp.values()|sum or 1 %}
+    {% set dispatched_pct = (sp.get('Dispatched',0)*100//total_sp) %}
+    <div style="font-size:44px;font-weight:700;color:#34D399;line-height:1.1;">{{ dispatched_pct }}<span style="font-size:16px;">%</span></div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ dispatched_pct }}%;background:#34D399;"></div></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">dispatched of total pipeline</div>
+  </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="two-col section-padding" style="padding-top:0;">
+  <div class="card">
+    <div class="card-header"><span style="color:#06B6D4;">📈</span> Monthly Trend (Created vs Dispatched)</div>
+    <div class="card-body"><canvas id="monthlyChart" height="200"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span style="color:#A78BFA;">🔄</span> WIP Stage Distribution</div>
+    <div class="card-body"><canvas id="wipChart" height="200"></canvas></div>
+  </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="two-col section-padding" style="padding-top:0;">
+  <div class="card">
+    <div class="card-header"><span style="color:#F59E0B;">🌊</span> Wash Results by Type</div>
+    <div class="card-body"><canvas id="washChart" height="200"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span style="color:#10B981;">👕</span> Sample Type Breakdown</div>
+    <div class="card-body"><canvas id="sampleTypeChart" height="200"></canvas></div>
+  </div>
+</div>
+
+<!-- Customer & Merchant Performance Tables -->
+<div class="two-col section-padding" style="padding-top:0;">
+  <div class="card">
+    <div class="card-header"><span style="color:#F472B6;">🏷</span> Top Customers by Volume</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Customer</th><th>Total</th><th>Completed</th><th>Completion %</th></tr></thead>
+        <tbody>
+          {% for c in by_customer %}
+          {% set pct = (c.done*100//c.cnt) if c.cnt else 0 %}
+          <tr>
+            <td style="font-weight:600;">{{ c.customer }}</td>
+            <td>{{ c.cnt }}</td>
+            <td style="color:var(--success);">{{ c.done }}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+                  <div style="width:{{ pct }}%;height:100%;background:{% if pct>=80 %}var(--success){% elif pct>=60 %}var(--warning){% else %}var(--danger){% endif %};border-radius:3px;"></div>
+                </div>
+                <span style="font-size:11px;font-weight:600;">{{ pct }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not by_customer %}<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span style="color:#3B82F6;">👤</span> Merchant Performance</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Merchant</th><th>Assigned</th><th>Completed</th><th>On Time</th></tr></thead>
+        <tbody>
+          {% for m in by_merchant %}
+          {% set otif_m = (m.on_time*100//m.completed) if m.completed else 0 %}
+          <tr>
+            <td style="font-weight:600;">{{ m.merchant }}</td>
+            <td>{{ m.total }}</td>
+            <td>{{ m.completed }}</td>
+            <td>
+              <span class="{% if otif_m>=80 %}delay-on_time{% elif otif_m>=60 %}delay-warning{% else %}delay-overdue{% endif %}">{{ otif_m }}%</span>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not by_merchant %}<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const gridColor='#1C2A40', labelColor='#94A3B8';
+
+// Monthly Trend
+const mt={{ monthly_trend|tojson }};
+new Chart(document.getElementById('monthlyChart'),{
+  type:'bar',
+  data:{
+    labels:mt.map(r=>r.month||''),
+    datasets:[
+      {label:'Created',data:mt.map(r=>r.created),backgroundColor:'#3B82F680',borderColor:'#3B82F6',borderWidth:1,borderRadius:3},
+      {label:'Dispatched',data:mt.map(r=>r.completed),backgroundColor:'#10B98180',borderColor:'#10B981',borderWidth:1,borderRadius:3}
+    ]
+  },
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:labelColor,font:{size:11}}}},scales:{x:{ticks:{color:labelColor},grid:{color:gridColor}},y:{ticks:{color:labelColor},grid:{color:gridColor},beginAtZero:true}}}
+});
+
+// WIP Stage Horizontal Bar
+const wd={{ wip_breakdown|tojson }};
+const stageMap={'U/P':'Pattern','U/C':'Cutting','U/S':'Sewing','U/W':'Washing','U/F':'Finishing','Dispatched':'Dispatched'};
+const stageColors2={'Pattern':'#A78BFA','Cutting':'#F97316','Sewing':'#06B6D4','Washing':'#3B82F6','Finishing':'#10B981','Dispatched':'#34D399'};
+const wdLabels=wd.map(r=>stageMap[r.wip_stage]||r.wip_stage||'Unknown');
+const wdData=wd.map(r=>r.cnt);
+const wdColors=wdLabels.map(l=>stageColors2[l]||'#475569');
+new Chart(document.getElementById('wipChart'),{
+  type:'bar',
+  data:{labels:wdLabels,datasets:[{label:'Styles',data:wdData,backgroundColor:wdColors,borderRadius:4,borderSkipped:false}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:labelColor},grid:{color:gridColor},beginAtZero:true},y:{ticks:{color:labelColor},grid:{color:gridColor}}}}
+});
+
+// Wash by Type Stacked Bar
+const wbt={{ wash_by_type|tojson }};
+new Chart(document.getElementById('washChart'),{
+  type:'bar',
+  data:{
+    labels:wbt.map(r=>r.wash_type||'Unknown'),
+    datasets:[
+      {label:'Pass',data:wbt.map(r=>r.passed||0),backgroundColor:'#10B981',borderRadius:3},
+      {label:'Fail',data:wbt.map(r=>r.failed||0),backgroundColor:'#EF4444',borderRadius:3},
+      {label:'Rework',data:wbt.map(r=>r.rework||0),backgroundColor:'#F59E0B',borderRadius:3}
+    ]
+  },
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:labelColor,font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:labelColor,font:{size:9}},grid:{color:gridColor}},y:{stacked:true,ticks:{color:labelColor},grid:{color:gridColor},beginAtZero:true}}}
+});
+
+// Sample Type Doughnut
+const bst={{ by_sample_type|tojson }};
+const stColors=['#3B82F6','#10B981','#F59E0B','#EF4444','#A78BFA','#06B6D4','#F472B6','#34D399'];
+new Chart(document.getElementById('sampleTypeChart'),{
+  type:'doughnut',
+  data:{labels:bst.map(r=>r.sample_type),datasets:[{data:bst.map(r=>r.cnt),backgroundColor:stColors,borderWidth:0,hoverOffset:4}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:labelColor,font:{size:10},boxWidth:12,padding:8}}}}
+});
+</script>
+{% endblock %}

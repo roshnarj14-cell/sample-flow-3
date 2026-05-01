@@ -1,0 +1,793 @@
+{% extends "base.html" %}
+{% block title %}Indents — PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Sample Request / Indent</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ New Indent</button>
+</div>
+
+<!-- Filter bar -->
+<div class="search-bar">
+  <input class="search-input" id="search" placeholder="🔍 Search style, indent no..." oninput="filterTable()">
+  <select class="search-input" style="width:160px;" id="filter-type" onchange="filterTable()">
+    <option value="">All Sample Types</option>
+    {% for t in ['Development','Proto','Fit','1st Sample','SMS','PRE-SMS','LF Sample','Size Set','Photoshoot','PP','Sealer','Presentation'] %}
+    <option>{{ t }}</option>{% endfor %}
+  </select>
+  <select class="search-input" style="width:150px;" id="filter-status" onchange="filterTable()">
+    <option value="">All Statuses</option>
+    {% for s in ['Pending','In Progress','Completed','Cancelled'] %}<option>{{ s }}</option>{% endfor %}
+  </select>
+</div>
+
+<!-- Stats strip -->
+<div style="display:flex; background:var(--bg-mid); border-bottom:1px solid var(--border);">
+  {% set planned = indents|selectattr('is_planned','eq',1)|list|length %}
+  {% set pending = indents|selectattr('status','eq','Pending')|list|length %}
+  {% set inprog  = indents|selectattr('status','eq','In Progress')|list|length %}
+  {% set done    = indents|selectattr('status','eq','Completed')|list|length %}
+  {% for label, val, color in [('Total Indents', indents|length, '#06B6D4'),('Planned', planned, '#3B82F6'),('Pending', pending, '#F59E0B'),('In Progress', inprog, '#A78BFA'),('Completed', done, '#10B981')] %}
+  <div style="flex:1; text-align:center; padding:12px 8px;">
+    <div style="font-size:22px; font-weight:700; color:{{ color }};">{{ val }}</div>
+    <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table" id="indent-table">
+    <thead>
+      <tr>
+        <th>Indent No</th><th>Style Code</th><th>Style Name</th><th>Customer</th>
+        <th>Merchant</th><th>Season</th><th>Sample Type</th><th>Qty</th>
+        <th>Indent Date</th><th>Target Dispatch</th><th>Delay</th><th>Wash Type</th>
+        <th>Planned</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in indents %}
+      <tr data-search="{{ i.style_code|lower }} {{ i.indent_no|lower }} {{ i.style_name|lower }}"
+          data-type="{{ i.sample_type }}" data-status="{{ i.status }}">
+        <td><span style="color:var(--accent2); font-weight:600;">{{ i.indent_no }}</span></td>
+        <td style="color:var(--accent); font-weight:600;">{{ i.style_code or '—' }}</td>
+        <td>{{ i.style_name or '—' }}</td>
+        <td>{{ i.customer or '—' }}</td>
+        <td>{{ i.merchant_name or '—' }}</td>
+        <td>{{ i.season or '—' }}</td>
+        <td><span class="badge badge-blue">{{ i.sample_type }}</span></td>
+        <td>{{ i.qty or '—' }}</td>
+        <td style="font-size:11px; color:var(--text-muted);">{{ i.indent_date or '—' }}</td>
+        <td style="font-size:11px; {% if i.is_overdue %}color:var(--danger);{% else %}color:var(--text-muted);{% endif %}">
+          {{ i.target_dispatch or '—' }}
+        </td>
+        <td>
+          {% if i._delay %}
+          <span class="delay-{{ i._delay.status }}">{{ i._delay.label }}</span>
+          {% elif i.is_overdue %}
+          <span class="delay-overdue">Overdue</span>
+          {% else %}
+          <span class="delay-no_target">—</span>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-teal">{{ i.wash_type or '—' }}</span></td>
+        <td>
+          {% if i.is_planned %}
+            <span class="badge badge-green">✓ Planned</span>
+          {% else %}
+            <span class="badge badge-warning">Unplanned</span>
+          {% endif %}
+        </td>
+        <td>
+          {% set sc = {'Pending':'badge-muted','In Progress':'badge-warning','Completed':'badge-green','Cancelled':'badge-danger'} %}
+          <span class="badge {{ sc.get(i.status,'badge-muted') }}">{{ i.status }}</span>
+        </td>
+        <td style="display:flex; gap:4px;">
+          <button class="btn btn-muted btn-sm" onclick="viewIndent({{ i|tojson|e }})">👁 View</button>
+          <button class="btn btn-primary btn-sm" onclick="editIndent({{ i|tojson|e }})">✏</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="action-bar">
+  <span class="count-label" id="count-label">{{ indents|length }} indents</span>
+</div>
+
+<!-- ═══════════════════════════ ADD MODAL ═══════════════════════════ -->
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span>📋 New Sample Request / Indent</span>
+      <button class="modal-close" onclick="closeModal('add-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/indent/create" id="add-form">
+
+        <!-- Section: Style Details -->
+        <div class="indent-section">
+          <div class="indent-section-title">Style & Customer Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Style Code</label>
+              <input class="form-control" name="style_code" placeholder="e.g. MSH5935">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Style Name</label>
+              <input class="form-control" name="style_name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Customer / Brand *</label>
+              <select class="form-control" name="brand_id">
+                <option value="">— Select —</option>
+                {% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Merchant</label>
+              <select class="form-control" name="merchant_id">
+                <option value="">— Select —</option>
+                {% for m in merchants %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Season</label>
+              <select class="form-control" name="season">
+                <option value="">—</option>
+                {% for s in ['H1 27','H2 26','SP27','AW27','SS27','H1 26','H2 25'] %}<option>{{ s }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sample Type *</label>
+              <select class="form-control" name="sample_type" required>
+                {% for t in ['Development','Proto','Fit','1st Sample','SMS','PRE-SMS','LF Sample','Size Set','Photoshoot','PP','Sealer','Presentation','Body Mock','Sleeve Mock','Collar Sleeve Mock','Gold Seal Sample','Launch Sample','Buyer Sample'] %}
+                <option>{{ t }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Size</label>
+              <input class="form-control" name="size" placeholder="e.g. M">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Quantity *</label>
+              <input class="form-control" name="qty" type="number" min="1" value="1" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Fabric Details -->
+        <div class="indent-section">
+          <div class="indent-section-title">Fabric & Trim Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Body Fabric Code</label>
+              <input class="form-control" name="body_fabric_code" placeholder="Fabric code/ref">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Body Fabric Description</label>
+              <input class="form-control" name="body_fabric_desc" placeholder="e.g. 100% Cotton Poplin">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fabric Composition</label>
+              <input class="form-control" name="fabric_composition" placeholder="e.g. 100% Cotton">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fabric Status</label>
+              <select class="form-control" name="fabric_status">
+                <option value="">—</option>
+                <option>Available</option><option>Requested</option><option>Not Available</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Trim Fabric Code</label>
+              <input class="form-control" name="trim_fabric_code">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Trim Description</label>
+              <input class="form-control" name="trim_desc">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color</label>
+              <input class="form-control" name="color" placeholder="e.g. Washed Inky">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fabric Placement</label>
+              <input class="form-control" name="fabric_placement" placeholder="e.g. As per standard">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Wash & Process Details -->
+        <div class="indent-section">
+          <div class="indent-section-title">Wash & Process Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Wash Type</label>
+              <select class="form-control" name="wash_type">
+                <option value="">— Non-Wash —</option>
+                {% for t in ['BASIC','RFD/OD','DENIM -CRITICAL','DENIM - NON CRITICAL','NON-DENIM CRITICAL','TBC','SOFTNER WASH'] %}
+                <option>{{ t }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Special Requirements</label>
+              <input class="form-control" name="special_requirements" placeholder="e.g. Enzyme wash">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Print / Embroidery</label>
+              <select class="form-control" name="print_embroidery">
+                <option value="">None</option>
+                <option>Print</option><option>Embroidery</option><option>Both</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">ERP Reference</label>
+              <input class="form-control" name="erp_ref">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Thread Details -->
+        <div class="indent-section">
+          <div class="indent-section-title">Thread & Button Details</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Top Stitch Thread</label>
+              <input class="form-control" name="thread_top_stitch" placeholder="e.g. Tkt 100/Tex 30">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Body & Others Thread</label>
+              <input class="form-control" name="thread_body" placeholder="e.g. Tkt 100/Tex 30">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Button Details</label>
+              <input class="form-control" name="button_details" placeholder="e.g. 10mm 4-hole">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Dates & Planning -->
+        <div class="indent-section">
+          <div class="indent-section-title">Dates & Planning</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Indent Date</label>
+              <input class="form-control" name="indent_date" type="date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Target Dispatch Date</label>
+              <input class="form-control" name="target_dispatch" type="date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Planning Status</label>
+              <select class="form-control" name="is_planned">
+                <option value="0">Unplanned</option>
+                <option value="1">Planned</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Priority</label>
+              <select class="form-control" name="priority">
+                <option value="Normal">Normal</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label class="form-label">Remarks / Special Instructions</label>
+              <textarea class="form-control" name="remarks" rows="2" placeholder="Please follow the sample and submit..."></textarea>
+            </div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="showPreview()">👁 Preview & Confirm →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ PREVIEW MODAL ═══════════════════════════ -->
+<div class="modal-overlay" id="preview-modal" style="display:none; z-index:1100;">
+  <div class="modal" style="width:820px; max-width:96vw; max-height:92vh; overflow-y:auto;">
+    <div class="modal-header" style="position:sticky; top:0; z-index:10; background:var(--bg-card);">
+      <span>📋 Preview — Please review before confirming</span>
+      <button class="modal-close" onclick="closeModal('preview-modal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div id="preview-body" style="background:white; color:#111; padding:28px 32px; font-family:Arial,sans-serif; font-size:11px;"></div>
+    </div>
+    <div class="modal-footer" style="position:sticky; bottom:0; background:var(--bg-card);">
+      <button class="btn btn-muted" onclick="closeModal('preview-modal'); openModal('add-modal')">← Edit</button>
+      <button class="btn btn-primary" style="background:linear-gradient(135deg,#10B981,#059669);" onclick="document.getElementById('add-form').submit()">✅ Confirm & Create Indent</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ VIEW MODAL ═══════════════════════════ -->
+<div class="modal-overlay" id="view-modal" style="display:none;">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span>📋 Indent Details — <span id="v-indent-no" style="color:var(--accent2);"></span></span>
+      <button class="modal-close" onclick="closeModal('view-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="view-body">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('view-modal')">Close</button>
+      <button class="btn btn-primary" onclick="printIndent()">🖨 Print / Save PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ EDIT MODAL ═══════════════════════════ -->
+<div class="modal-overlay" id="edit-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span>Update Status — <span id="e-indent-no" style="color:var(--accent2);"></span></span>
+      <button class="modal-close" onclick="closeModal('edit-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/indent/update-full" id="edit-form">
+        <input type="hidden" name="indent_id" id="e-id">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">WIP Stage</label>
+          <select class="form-control" name="wip_stage" id="e-wip-stage">
+            <option value="U/P">U/P — Pattern</option>
+            <option value="U/C">U/C — Cutting</option>
+            <option value="U/S">U/S — Sewing</option>
+            <option value="U/W">U/W — Washing</option>
+            <option value="U/F">U/F — Finishing</option>
+            <option value="Dispatched">Dispatched ✓</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Status</label>
+          <select class="form-control" name="status" id="e-status">
+            {% for s in ['Pending','In Progress','Completed','Cancelled'] %}<option>{{ s }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Planning Status</label>
+          <select class="form-control" name="is_planned">
+            <option value="0">Unplanned</option>
+            <option value="1">Planned</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Update Remarks</label>
+          <textarea class="form-control" name="remarks" rows="3" id="e-remarks"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('edit-form').submit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.indent-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.indent-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+.detail-row { display: flex; flex-direction: column; padding: 4px 0; }
+.detail-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+.detail-value { font-size: 13px; color: var(--text); }
+</style>
+
+<script>
+function openModal(id) { document.getElementById(id).style.display='flex'; }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+
+function filterTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const type = document.getElementById('filter-type').value;
+  const status = document.getElementById('filter-status').value;
+  const rows = document.querySelectorAll('#indent-table tbody tr');
+  let visible = 0;
+  rows.forEach(r => {
+    const ms = !search || r.dataset.search.includes(search);
+    const mt = !type || r.dataset.type === type;
+    const mst = !status || r.dataset.status === status;
+    r.style.display = (ms && mt && mst) ? '' : 'none';
+    if(ms && mt && mst) visible++;
+  });
+  document.getElementById('count-label').textContent = visible + ' indents';
+}
+
+function viewIndent(i) {
+  _currentIndent = i;
+  document.getElementById('v-indent-no').textContent = i.indent_no;
+  const fields = [
+    ['Indent No', i.indent_no], ['Style Code', i.style_code], ['Style Name', i.style_name],
+    ['Customer', i.customer], ['Merchant', i.merchant_name], ['Season', i.season],
+    ['Sample Type', i.sample_type], ['Size', i.size], ['Quantity', i.qty],
+    ['Color', i.color], ['Indent Date', i.indent_date], ['Target Dispatch', i.target_dispatch],
+    ['Body Fabric Code', i.body_fabric_code], ['Body Fabric Desc', i.body_fabric_desc],
+    ['Fabric Composition', i.fabric_composition], ['Trim Desc', i.trim_desc],
+    ['Wash Type', i.wash_type], ['Print/Embroidery', i.print_embroidery],
+    ['Thread - Top Stitch', i.thread_top_stitch], ['Thread - Body', i.thread_body],
+    ['Button Details', i.button_details], ['Special Requirements', i.special_requirements],
+    ['ERP Ref', i.erp_ref], ['Priority', i.priority], ['Status', i.status],
+    ['Remarks', i.remarks],
+  ];
+  const sections = [
+    { title: 'Style & Customer', keys: [0,1,2,3,4,5,6,7,8,9,10,11] },
+    { title: 'Fabric & Trims', keys: [12,13,14,15] },
+    { title: 'Wash & Process', keys: [16,17,20,21] },
+    { title: 'Thread & Buttons', keys: [18,19] },
+    { title: 'Planning', keys: [22,23,24,25] },
+  ];
+  let html = '';
+  sections.forEach(sec => {
+    html += `<div class="indent-section"><div class="indent-section-title">${sec.title}</div><div class="detail-grid">`;
+    sec.keys.forEach(k => {
+      const [label, val] = fields[k];
+      html += `<div class="detail-row"><span class="detail-label">${label}</span><span class="detail-value">${val||'—'}</span></div>`;
+    });
+    html += '</div></div>';
+  });
+  document.getElementById('view-body').innerHTML = html;
+  openModal('view-modal');
+}
+
+// ── Current indent data stored for printing ──
+let _currentIndent = null;
+
+function getField(name) {
+  const el = document.querySelector(`#add-form [name="${name}"]`);
+  if (!el) return '';
+  if (el.tagName === 'SELECT') return el.options[el.selectedIndex]?.text || '';
+  return el.value || '';
+}
+
+function showPreview() {
+  const f = getField;
+  closeModal('add-modal');
+
+  const previewHTML = `
+  <style>
+    #preview-body * { box-sizing:border-box; }
+    .ph { border-bottom:2px solid #1a3a6e; padding-bottom:10px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:flex-start; }
+    .ph-logo { font-size:18px; font-weight:900; color:#1a3a6e; letter-spacing:1px; }
+    .ph-logo span { font-size:9px; display:block; color:#555; font-weight:400; letter-spacing:2px; }
+    .ph-title h1 { font-size:14px; font-weight:700; color:#1a3a6e; text-transform:uppercase; letter-spacing:1px; text-align:center; }
+    .ph-title p { font-size:9px; color:#888; text-align:center; margin-top:2px; }
+    .ph-meta { text-align:right; font-size:10px; color:#555; line-height:1.9; }
+    .ph-meta strong { color:#1a3a6e; }
+    .indent-no-badge { background:#1a3a6e; color:white; padding:5px 14px; border-radius:4px; font-size:13px; font-weight:700; letter-spacing:2px; display:inline-block; margin-bottom:14px; }
+    .ps { margin-bottom:9px; border:1px solid #ccc; border-radius:4px; overflow:hidden; }
+    .ps-title { background:#1a3a6e; color:white; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; padding:5px 10px; }
+    .ps-body { padding:8px 10px; background:white; }
+    .g2 { display:grid; grid-template-columns:1fr 1fr; gap:5px 20px; }
+    .g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px 16px; }
+    .g4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:5px 12px; }
+    .pf { border-bottom:1px solid #eee; padding:3px 0 4px; }
+    .pf-l { font-size:8.5px; color:#999; text-transform:uppercase; letter-spacing:.4px; }
+    .pf-v { font-size:11px; color:#111; font-weight:500; min-height:14px; }
+    .remarks-box { border:1px solid #ddd; border-radius:3px; padding:7px 9px; min-height:38px; font-size:11px; color:#333; background:#fafafa; }
+    .sig-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-top:18px; }
+    .sig-block { border-top:1px solid #333; padding-top:5px; text-align:center; font-size:9px; color:#777; }
+    .pf-badge { display:inline-block; padding:2px 7px; border-radius:8px; font-size:9px; font-weight:700; }
+    .badge-urgent { background:#fee2e2; color:#b91c1c; }
+    .badge-high { background:#fef3c7; color:#92400e; }
+    .badge-normal { background:#d1fae5; color:#065f46; }
+    .notice { background:#fffbeb; border:1px solid #f59e0b; border-radius:4px; padding:8px 12px; margin-bottom:14px; font-size:10px; color:#92400e; display:flex; align-items:center; gap:8px; }
+    .pfooter { margin-top:14px; text-align:center; font-size:9px; color:#bbb; border-top:1px solid #eee; padding-top:7px; }
+  </style>
+
+  <div class="notice">⚠️ <strong>Please review all details carefully.</strong> Once confirmed, this indent will be created and cannot be edited from this screen.</div>
+
+  <div class="ph">
+    <div class="ph-logo">SampleFlow<span>APPAREL PLM</span></div>
+    <div class="ph-title"><h1>Sample Request / Indent Form</h1><p>From concept to collection — seamlessly.</p></div>
+    <div class="ph-meta">
+      <div><strong>Date:</strong> ${f('indent_date') || '—'}</div>
+      <div><strong>ERP Ref:</strong> ${f('erp_ref') || '—'}</div>
+      <div><strong>Priority:</strong> <span class="pf-badge badge-${(f('priority')||'Normal').toLowerCase()}">${f('priority')||'Normal'}</span></div>
+    </div>
+  </div>
+
+  <div class="indent-no-badge">INDENT # &nbsp;AUTO-GENERATED</div>
+
+  <div class="ps">
+    <div class="ps-title">Style & Customer Details</div>
+    <div class="ps-body"><div class="g4">
+      <div class="pf"><div class="pf-l">Style Code</div><div class="pf-v">${f('style_code')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Style Name</div><div class="pf-v">${f('style_name')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Customer / Brand</div><div class="pf-v">${f('brand_id')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Merchant</div><div class="pf-v">${f('merchant_id')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Season</div><div class="pf-v">${f('season')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Sample Type</div><div class="pf-v">${f('sample_type')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Size</div><div class="pf-v">${f('size')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Quantity</div><div class="pf-v">${f('qty')||'—'}</div></div>
+    </div></div>
+  </div>
+
+  <div class="ps">
+    <div class="ps-title">Body Fabric Details</div>
+    <div class="ps-body"><div class="g4">
+      <div class="pf"><div class="pf-l">Color</div><div class="pf-v">${f('color')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Fabric Code</div><div class="pf-v">${f('body_fabric_code')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Fabric Description</div><div class="pf-v">${f('body_fabric_desc')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Composition</div><div class="pf-v">${f('fabric_composition')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Fabric Status</div><div class="pf-v">${f('fabric_status')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Fabric Placement</div><div class="pf-v">${f('fabric_placement')||'—'}</div></div>
+    </div></div>
+  </div>
+
+  <div class="ps">
+    <div class="ps-title">Trim & Accessories</div>
+    <div class="ps-body"><div class="g3">
+      <div class="pf"><div class="pf-l">Trim Fabric Code</div><div class="pf-v">${f('trim_fabric_code')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Trim Description</div><div class="pf-v">${f('trim_desc')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Print / Embroidery</div><div class="pf-v">${f('print_embroidery')||'None'}</div></div>
+    </div></div>
+  </div>
+
+  <div class="ps">
+    <div class="ps-title">Thread & Button Details</div>
+    <div class="ps-body"><div class="g3">
+      <div class="pf"><div class="pf-l">Top Stitch Thread</div><div class="pf-v">${f('thread_top_stitch')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Body & Others Thread</div><div class="pf-v">${f('thread_body')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Button Details</div><div class="pf-v">${f('button_details')||'—'}</div></div>
+    </div></div>
+  </div>
+
+  <div class="ps">
+    <div class="ps-title">Wash & Process Details</div>
+    <div class="ps-body"><div class="g3">
+      <div class="pf"><div class="pf-l">Wash Type</div><div class="pf-v">${f('wash_type')||'Non-Wash'}</div></div>
+      <div class="pf"><div class="pf-l">Special Requirements</div><div class="pf-v">${f('special_requirements')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">ERP Reference</div><div class="pf-v">${f('erp_ref')||'—'}</div></div>
+    </div></div>
+  </div>
+
+  <div class="ps">
+    <div class="ps-title">Dates & Planning</div>
+    <div class="ps-body"><div class="g4">
+      <div class="pf"><div class="pf-l">Indent Date</div><div class="pf-v">${f('indent_date')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Target Dispatch</div><div class="pf-v">${f('target_dispatch')||'—'}</div></div>
+      <div class="pf"><div class="pf-l">Planning Status</div><div class="pf-v">${f('is_planned') === 'Planned' ? '✓ Planned' : 'Unplanned'}</div></div>
+      <div class="pf"><div class="pf-l">Priority</div><div class="pf-v">${f('priority')||'Normal'}</div></div>
+    </div></div>
+  </div>
+
+  <div class="ps">
+    <div class="ps-title">Remarks / Special Instructions</div>
+    <div class="ps-body"><div class="remarks-box">${f('remarks') || 'Please follow the sample and submit as per standard.'}</div></div>
+  </div>
+
+  <div class="sig-row">
+    <div class="sig-block">Prepared By</div>
+    <div class="sig-block">Approved By</div>
+    <div class="sig-block">Received By</div>
+  </div>
+
+  <div class="pfooter">SampleFlow Apparel PLM &nbsp;|&nbsp; Preview generated ${new Date().toLocaleString()} &nbsp;|&nbsp; Indent will be assigned a number upon confirmation</div>
+  `;
+
+  document.getElementById('preview-body').innerHTML = previewHTML;
+  openModal('preview-modal');
+}
+
+
+
+function printIndent() {
+  if (!_currentIndent) return;
+  const i = _currentIndent;
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Indent ${i.indent_no}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; background: white; padding: 20px; }
+    @page { size: A4; margin: 14mm; }
+
+    /* Header */
+    .print-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 2px solid #1a3a6e; padding-bottom: 10px; margin-bottom: 14px; }
+    .print-logo { font-size:20px; font-weight:900; color:#1a3a6e; letter-spacing:1px; }
+    .print-logo span { font-size:10px; display:block; color:#555; font-weight:400; letter-spacing:2px; }
+    .print-title { text-align:center; }
+    .print-title h1 { font-size:15px; font-weight:700; color:#1a3a6e; text-transform:uppercase; letter-spacing:1px; }
+    .print-title p { font-size:10px; color:#666; margin-top:2px; }
+    .print-meta { text-align:right; font-size:10px; color:#555; line-height:1.8; }
+    .print-meta strong { color:#1a3a6e; }
+
+    /* Indent number badge */
+    .indent-badge { background:#1a3a6e; color:white; padding:4px 12px; border-radius:4px; font-size:13px; font-weight:700; letter-spacing:1px; display:inline-block; margin-bottom:14px; }
+
+    /* Sections */
+    .section { margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; overflow:hidden; }
+    .section-title { background:#1a3a6e; color:white; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:5px 10px; }
+    .section-body { padding: 8px 10px; }
+
+    /* Grid */
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; }
+    .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px 16px; }
+    .grid-4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px 16px; }
+    .field { border-bottom:1px solid #e5e5e5; padding: 3px 0 4px; }
+    .field-label { font-size:9px; color:#888; text-transform:uppercase; letter-spacing:.5px; }
+    .field-value { font-size:11px; color:#111; font-weight:500; min-height:14px; }
+
+    /* Priority badge */
+    .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:9px; font-weight:700; text-transform:uppercase; }
+    .badge-urgent { background:#fee2e2; color:#b91c1c; }
+    .badge-high { background:#fef3c7; color:#92400e; }
+    .badge-normal { background:#d1fae5; color:#065f46; }
+
+    /* Status badge */
+    .badge-pending { background:#fef3c7; color:#92400e; }
+    .badge-inprog  { background:#dbeafe; color:#1e40af; }
+    .badge-done    { background:#d1fae5; color:#065f46; }
+
+    /* Remarks box */
+    .remarks-box { border:1px solid #ccc; border-radius:3px; padding:6px 8px; min-height:36px; font-size:11px; color:#333; background:#fafafa; }
+
+    /* Signature row */
+    .sig-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-top:14px; }
+    .sig-block { border-top:1px solid #333; padding-top:4px; text-align:center; font-size:9px; color:#555; }
+
+    /* Footer */
+    .print-footer { margin-top:16px; text-align:center; font-size:9px; color:#aaa; border-top:1px solid #eee; padding-top:8px; }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="print-header">
+    <div class="print-logo">SampleFlow<span>APPAREL PLM</span></div>
+    <div class="print-title">
+      <h1>Sample Request / Indent Form</h1>
+      <p>From concept to collection — seamlessly.</p>
+    </div>
+    <div class="print-meta">
+      <div><strong>Date:</strong> ${i.indent_date || '—'}</div>
+      <div><strong>ERP Ref:</strong> ${i.erp_ref || '—'}</div>
+      <div><strong>Priority:</strong> <span class="badge badge-${(i.priority||'Normal').toLowerCase()}">${i.priority || 'Normal'}</span></div>
+    </div>
+  </div>
+
+  <div class="indent-badge">INDENT # ${i.indent_no}</div>
+
+  <!-- STYLE & CUSTOMER -->
+  <div class="section">
+    <div class="section-title">Style & Customer Details</div>
+    <div class="section-body">
+      <div class="grid-4">
+        <div class="field"><div class="field-label">Style Code</div><div class="field-value">${i.style_code||'—'}</div></div>
+        <div class="field"><div class="field-label">Style Name</div><div class="field-value">${i.style_name||'—'}</div></div>
+        <div class="field"><div class="field-label">Customer / Brand</div><div class="field-value">${i.customer||'—'}</div></div>
+        <div class="field"><div class="field-label">Merchant</div><div class="field-value">${i.merchant_name||'—'}</div></div>
+        <div class="field"><div class="field-label">Season</div><div class="field-value">${i.season||'—'}</div></div>
+        <div class="field"><div class="field-label">Sample Type</div><div class="field-value">${i.sample_type||'—'}</div></div>
+        <div class="field"><div class="field-label">Size</div><div class="field-value">${i.size||'—'}</div></div>
+        <div class="field"><div class="field-label">Quantity</div><div class="field-value">${i.qty||'—'}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY FABRIC -->
+  <div class="section">
+    <div class="section-title">Body Fabric Details</div>
+    <div class="section-body">
+      <div class="grid-4">
+        <div class="field"><div class="field-label">Color</div><div class="field-value">${i.color||'—'}</div></div>
+        <div class="field"><div class="field-label">Fabric Code</div><div class="field-value">${i.body_fabric_code||'—'}</div></div>
+        <div class="field"><div class="field-label">Fabric Description</div><div class="field-value">${i.body_fabric_desc||'—'}</div></div>
+        <div class="field"><div class="field-label">Composition</div><div class="field-value">${i.fabric_composition||'—'}</div></div>
+        <div class="field"><div class="field-label">Fabric Status</div><div class="field-value">${i.fabric_status||'—'}</div></div>
+        <div class="field"><div class="field-label">Fabric Placement</div><div class="field-value">${i.fabric_placement||'—'}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRIM & ACCESSORIES -->
+  <div class="section">
+    <div class="section-title">Trim & Accessories</div>
+    <div class="section-body">
+      <div class="grid-3">
+        <div class="field"><div class="field-label">Trim Fabric Code</div><div class="field-value">${i.trim_fabric_code||'—'}</div></div>
+        <div class="field"><div class="field-label">Trim Description</div><div class="field-value">${i.trim_desc||'—'}</div></div>
+        <div class="field"><div class="field-label">Print / Embroidery</div><div class="field-value">${i.print_embroidery||'None'}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THREAD & BUTTONS -->
+  <div class="section">
+    <div class="section-title">Thread & Button Details</div>
+    <div class="section-body">
+      <div class="grid-3">
+        <div class="field"><div class="field-label">Top Stitch Thread</div><div class="field-value">${i.thread_top_stitch||'—'}</div></div>
+        <div class="field"><div class="field-label">Body & Others Thread</div><div class="field-value">${i.thread_body||'—'}</div></div>
+        <div class="field"><div class="field-label">Button Details</div><div class="field-value">${i.button_details||'—'}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WASH & PROCESS -->
+  <div class="section">
+    <div class="section-title">Wash & Process Details</div>
+    <div class="section-body">
+      <div class="grid-3">
+        <div class="field"><div class="field-label">Wash Type</div><div class="field-value">${i.wash_type||'Non-Wash'}</div></div>
+        <div class="field"><div class="field-label">Special Requirements</div><div class="field-value">${i.special_requirements||'—'}</div></div>
+        <div class="field"><div class="field-label">ERP Reference</div><div class="field-value">${i.erp_ref||'—'}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATES & PLANNING -->
+  <div class="section">
+    <div class="section-title">Dates & Planning</div>
+    <div class="section-body">
+      <div class="grid-4">
+        <div class="field"><div class="field-label">Indent Date</div><div class="field-value">${i.indent_date||'—'}</div></div>
+        <div class="field"><div class="field-label">Target Dispatch</div><div class="field-value">${i.target_dispatch||'—'}</div></div>
+        <div class="field"><div class="field-label">Planning Status</div><div class="field-value">${i.is_planned ? '✓ Planned' : 'Unplanned'}</div></div>
+        <div class="field"><div class="field-label">Status</div><div class="field-value">${i.status||'Pending'}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REMARKS -->
+  <div class="section">
+    <div class="section-title">Remarks / Special Instructions</div>
+    <div class="section-body">
+      <div class="remarks-box">${i.remarks || 'Please follow the sample and submit as per standard.'}</div>
+    </div>
+  </div>
+
+  <!-- SIGNATURES -->
+  <div class="sig-row">
+    <div class="sig-block">Prepared By</div>
+    <div class="sig-block">Approved By</div>
+    <div class="sig-block">Received By</div>
+  </div>
+
+  <div class="print-footer">
+    Generated by SampleFlow Apparel PLM &nbsp;|&nbsp; ${new Date().toLocaleString()} &nbsp;|&nbsp; Indent # ${i.indent_no}
+  </div>
+
+  <script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`);
+  win.document.close();
+}
+
+function editIndent(i) {
+  document.getElementById('e-id').value = i.id;
+  document.getElementById('e-indent-no').textContent = i.indent_no;
+  document.getElementById('e-remarks').value = i.remarks || '';
+  // Set WIP stage
+  const wipSel = document.getElementById('e-wip-stage');
+  if(wipSel) { for(let o of wipSel.options) { o.selected = o.value === i.wip_stage; } }
+  // Set Status
+  const stSel = document.getElementById('e-status');
+  if(stSel) { for(let o of stSel.options) { o.selected = o.text === i.status; } }
+  openModal('edit-modal');
+}
+</script>
+{% endblock %}

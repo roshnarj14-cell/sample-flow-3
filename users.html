@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Users — PLM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">User Management</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ Add User</button>
+</div>
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table">
+    <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="color:var(--accent); font-weight:600;">{{ u.username }}</td>
+        <td>{{ u.full_name }}</td>
+        <td><span class="badge badge-blue">{{ u.role }}</span></td>
+        <td>{{ u.email or '—' }}</td>
+        <td><span class="badge {% if u.active %}badge-green{% else %}badge-danger{% endif %}">{% if u.active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td><button class="btn btn-muted btn-sm" onclick="editUser({{ u|tojson|e }})">✏ Edit</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header"><span>New User</span><button class="modal-close" onclick="closeModal('add-modal')">✕</button></div>
+    <div class="modal-body">
+      <form method="post" action="/users/create" id="add-form">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Username *</label><input class="form-control" name="username" required></div>
+          <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" name="full_name" required></div>
+          <div class="form-group">
+            <label class="form-label">Role *</label>
+            <select class="form-control" name="role">
+              {% for r in ['Admin','Manager','Merchandiser','Sampling','QA','Designer','SE','SamplingTech','Dispatch'] %}<option>{{ r }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Email</label><input class="form-control" name="email" type="email"></div>
+          <div class="form-group full"><label class="form-label">Password *</label><input class="form-control" name="password" type="password" required></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('add-form').submit()">Create User</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="edit-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header"><span>Edit User</span><button class="modal-close" onclick="closeModal('edit-modal')">✕</button></div>
+    <div class="modal-body">
+      <form method="post" action="/users/update" id="edit-form">
+        <input type="hidden" name="user_id" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" name="full_name" id="edit-name" required></div>
+          <div class="form-group">
+            <label class="form-label">Role</label>
+            <select class="form-control" name="role" id="edit-role">
+              {% for r in ['Admin','Manager','Merchandiser','Sampling','QA','Designer','SE','SamplingTech','Dispatch'] %}<option>{{ r }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group full"><label class="form-label">Email</label><input class="form-control" name="email" id="edit-email"></div>
+          <div class="form-group full"><label class="form-label">New Password (leave blank to keep)</label><input class="form-control" name="password" type="password"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('edit-form').submit()">Save</button>
+    </div>
+  </div>
+</div>
+<script>
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function editUser(u){
+  document.getElementById('edit-id').value=u.id;
+  document.getElementById('edit-name').value=u.full_name;
+  document.getElementById('edit-role').value=u.role;
+  document.getElementById('edit-email').value=u.email||'';
+  openModal('edit-modal');
+}
+</script>
+{% endblock %}

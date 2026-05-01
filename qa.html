@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}QA Inspection — PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">QA Inspection</h1>
+</div>
+
+<!-- Stats strip -->
+<div style="background:var(--bg-mid); display:flex; padding:0;">
+  {% set stats_data = [('In QA Queue', samples|length, '#06B6D4'), ('Approved', samples|selectattr('current_status','eq','Approved')|list|length, '#10B981'), ('On Hold', samples|selectattr('current_status','eq','QA Hold')|list|length, '#F59E0B'), ('Rejected', samples|selectattr('current_status','eq','Rejected')|list|length, '#EF4444')] %}
+  {% for label, val, color in stats_data %}
+  <div style="flex:1; text-align:center; padding:14px;">
+    <div style="font-size:24px; font-weight:700; color:{{ color }};">{{ val }}</div>
+    <div style="font-size:11px; color:var(--text-muted);">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="table-container" style="margin:16px 24px;">
+  <table class="data-table">
+    <thead>
+      <tr><th>Sample ID</th><th>Style Code</th><th>Style Name</th><th>Brand</th><th>Type</th><th>Size</th><th>Status</th><th>Updated</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      {% for s in samples %}
+      <tr>
+        <td><span style="color:var(--accent2); font-weight:600;">{{ s.sample_id }}</span></td>
+        <td>{{ s.style_code }}</td>
+        <td>{{ s.style_name or '—' }}</td>
+        <td>{{ s.brand_name or '—' }}</td>
+        <td><span class="badge badge-blue">{{ s.sample_type }}</span></td>
+        <td>{{ s.size or '—' }}</td>
+        <td>
+          {% set sc = {'Approved':'badge-green','Rejected':'badge-danger','In Progress':'badge-warning','QA Hold':'badge-warning','Pending':'badge-muted'} %}
+          <span class="badge {{ sc.get(s.current_status,'badge-muted') }}">{{ s.current_status }}</span>
+        </td>
+        <td style="font-size:11px; color:var(--text-muted);">{{ s.updated_at[:16] if s.updated_at else '' }}</td>
+        <td><button class="btn btn-primary btn-sm" onclick="inspect({{ s|tojson|e }})">🔍 Inspect</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Inspect Modal -->
+<div class="modal-overlay" id="inspect-modal" style="display:none;">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span>QA Inspection — <span id="qa-sample-id"></span></span>
+      <button class="modal-close" onclick="closeModal('inspect-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="post" action="/qa/submit" id="qa-form">
+        <input type="hidden" name="sample_db_id" id="qa-db-id">
+        <div style="background:var(--bg-mid); padding:12px 16px; border-radius:8px; margin-bottom:16px; display:flex; gap:16px; align-items:center;">
+          <span style="color:var(--accent2); font-size:16px; font-weight:700;" id="qa-disp-id"></span>
+          <span style="color:var(--text-muted);" id="qa-style-code"></span>
+          <span class="badge badge-blue" id="qa-type"></span>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Check Type *</label>
+            <select class="form-control" name="check_type">
+              {% for t in ['Measurement Check','Visual Inspection','Fit Check','Wash Test','Color Fastness','Final Approval'] %}<option>{{ t }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Result *</label>
+            <select class="form-control" name="result">
+              <option>Pass</option><option>Fail</option><option>Conditional Pass</option>
+            </select>
+          </div>
+        </div>
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:14px; margin:12px 0;">
+          <div style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px;">📏 Measurements (Optional)</div>
+          <div class="three-col">
+            {% for m in ['Chest (cm)','Waist (cm)','Hip (cm)','Length (cm)','Sleeve (cm)','Neck (cm)'] %}
+            <div class="form-group">
+              <label class="form-label">{{ m }}</label>
+              <input class="form-control" name="meas_{{ loop.index }}" placeholder="—">
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Defects Found</label>
+          <textarea class="form-control" name="defects" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Inspector Notes</label>
+          <textarea class="form-control" name="notes" rows="2"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('inspect-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('qa-form').submit()">Submit QA Result</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).style.display='flex'; }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+function inspect(s) {
+  document.getElementById('qa-sample-id').textContent = s.sample_id;
+  document.getElementById('qa-disp-id').textContent = s.sample_id;
+  document.getElementById('qa-db-id').value = s.id;
+  document.getElementById('qa-style-code').textContent = s.style_code;
+  document.getElementById('qa-type').textContent = s.sample_type;
+  openModal('inspect-modal');
+}
+</script>
+{% endblock %}

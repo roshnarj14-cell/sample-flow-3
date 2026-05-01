@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Output Report — PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">Output Report</h1>
+  <div style="display:flex; gap:8px;">
+    <select class="search-input" style="width:120px;" id="out-year" onchange="filterOutput()">
+      <option value="">All Years</option>
+      {% for y in years %}<option>{{ y }}</option>{% endfor %}
+    </select>
+    <select class="search-input" style="width:130px;" id="out-month" onchange="filterOutput()">
+      <option value="">All Months</option>
+      {% for m in ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+      <option>{{ m }}</option>{% endfor %}
+    </select>
+    <select class="search-input" style="width:150px;" id="out-customer" onchange="filterOutput()">
+      <option value="">All Customers</option>
+      {% for b in brands %}<option>{{ b.name }}</option>{% endfor %}
+    </select>
+    <select class="search-input" style="width:150px;" id="out-merchant" onchange="filterOutput()">
+      <option value="">All Merchants</option>
+      {% for m in merchants %}<option>{{ m.name }}</option>{% endfor %}
+    </select>
+  </div>
+</div>
+
+<!-- Toggle Dev / SMS -->
+<div class="tab-strip" style="padding:0 24px;">
+  <button class="tab-btn active" id="otab-dev" onclick="switchOTab('dev')">Development Samples</button>
+  <button class="tab-btn" id="otab-sms" onclick="switchOTab('sms')">SMS Samples</button>
+</div>
+
+<!-- Summary stats -->
+<div style="padding:12px 24px 0; display:flex; gap:16px; align-items:center;">
+  <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:10px 20px;">
+    <span style="font-size:11px; color:var(--text-muted);">DATE</span>
+    <div style="font-size:18px; font-weight:700; color:var(--accent2);" id="out-date-label">—</div>
+  </div>
+  <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:10px 20px; display:flex; gap:20px;">
+    <div style="text-align:center;">
+      <div style="font-size:28px; font-weight:700; color:var(--accent);" id="out-styles-count">0</div>
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Styles</div>
+    </div>
+    <div style="width:1px; background:var(--border);"></div>
+    <div style="text-align:center;">
+      <div style="font-size:28px; font-weight:700; color:var(--success);" id="out-pcs-count">0</div>
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">PCS</div>
+    </div>
+  </div>
+  <input class="search-input" style="width:260px;" id="out-search" placeholder="🔍 Search style, color..." oninput="filterOutput()">
+</div>
+
+<!-- Table -->
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table" id="output-table">
+    <thead>
+      <tr>
+        <th>Style No</th><th>Indent No</th><th>Indent RCV</th><th>Dispatch Target</th>
+        <th>Merchant</th><th>Customer</th><th>Season</th><th>Sample Type</th>
+        <th>Color</th><th>QTY</th><th>Output Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in output_rows %}
+      {% set sms_types = ['SMS','PRE-SMS','LF Sample','Size Set','Sealer','Gold Seal Sample','Photoshoot','Presentation'] %}
+      <tr data-customer="{{ r.customer|lower }}" data-merchant="{{ r.merchant|lower }}"
+          data-style="{{ r.style_code|lower }}" data-color="{{ (r.color or '')|lower }}"
+          data-stype="{{ r.sample_type }}"
+          data-year="{{ r.dispatch_year }}" data-month="{{ r.dispatch_month }}">
+        <td style="color:var(--accent); font-weight:600;">{{ r.style_code or '—' }}</td>
+        <td style="color:var(--accent2);">{{ r.indent_no or '—' }}</td>
+        <td style="font-size:11px; color:var(--text-muted);">{{ r.indent_date or '—' }}</td>
+        <td style="font-size:11px; color:var(--text-muted);">{{ r.target_dispatch or '—' }}</td>
+        <td>{{ r.merchant or '—' }}</td>
+        <td>{{ r.customer or '—' }}</td>
+        <td>{{ r.season or '—' }}</td>
+        <td>
+          {% if r.sample_type in sms_types %}
+          <span class="badge badge-purple">{{ r.sample_type }}</span>
+          {% else %}
+          <span class="badge badge-blue">{{ r.sample_type }}</span>
+          {% endif %}
+        </td>
+        <td>{{ r.color or '—' }}</td>
+        <td style="font-weight:600;">{{ r.qty }}</td>
+        <td style="font-size:11px; color:var(--success); font-weight:600;">{{ r.output_date or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="action-bar">
+  <span class="count-label" id="out-count-label">{{ output_rows|length }} records</span>
+</div>
+
+<script>
+let currentOTab = 'dev';
+const smsList = ['sms','pre-sms','lf sample','size set','sealer','gold seal sample','photoshoot','presentation'];
+const devList = ['development','proto','fit','1st sample','body mock','sleeve mock','collar sleeve mock','buyer sample','launch sample'];
+
+function switchOTab(tab) {
+  currentOTab = tab;
+  document.getElementById('otab-dev').classList.toggle('active', tab === 'dev');
+  document.getElementById('otab-sms').classList.toggle('active', tab === 'sms');
+  filterOutput();
+}
+
+function filterOutput() {
+  const search = document.getElementById('out-search').value.toLowerCase();
+  const customer = document.getElementById('out-customer').value.toLowerCase();
+  const merchant = document.getElementById('out-merchant').value.toLowerCase();
+  const year = document.getElementById('out-year').value;
+  const month = document.getElementById('out-month').value;
+
+  const rows = document.querySelectorAll('#output-table tbody tr');
+  let styles = 0, pcs = 0;
+  const monthMap = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'};
+
+  rows.forEach(r => {
+    const stype = (r.dataset.stype || '').toLowerCase();
+    const matchTab = currentOTab === 'dev'
+      ? devList.some(t => stype.includes(t))
+      : smsList.some(t => stype.includes(t));
+    const matchSearch = !search || r.dataset.style.includes(search) || r.dataset.color.includes(search);
+    const matchCustomer = !customer || r.dataset.customer === customer;
+    const matchMerchant = !merchant || r.dataset.merchant === merchant;
+    const matchYear = !year || r.dataset.year === year;
+    const matchMonth = !month || r.dataset.month === (monthMap[month] || month);
+    const show = matchTab && matchSearch && matchCustomer && matchMerchant && matchYear && matchMonth;
+    r.style.display = show ? '' : 'none';
+    if(show) {
+      styles++;
+      const qty = parseInt(r.querySelector('td:nth-child(10)').textContent) || 0;
+      pcs += qty;
+    }
+  });
+  document.getElementById('out-styles-count').textContent = styles;
+  document.getElementById('out-pcs-count').textContent = pcs;
+  document.getElementById('out-count-label').textContent = styles + ' records';
+
+  const now = new Date();
+  document.getElementById('out-date-label').textContent = now.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-');
+}
+
+filterOutput();
+</script>
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — SampleFlow PLM{% endblock %}
+{% block content %}
+<div class="welcome-strip" style="justify-content:space-between;">
+  <div style="display:flex;align-items:center;gap:10px;flex:1;">
+    <span style="font-size:18px;">👋</span>
+    <h2>Welcome back, {{ user.full_name }}</h2>
+    <span class="badge badge-blue">{{ user.role }}</span>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    {% set ac = stats.alert_counts %}
+    {% if ac.critical > 0 %}<a href="/alerts" style="text-decoration:none;"><span class="delay-critical">🚨 {{ ac.critical }} Critical</span></a>
+    {% elif ac.warning > 0 %}<a href="/alerts" style="text-decoration:none;"><span class="delay-overdue">⚠️ {{ ac.warning }} Warnings</span></a>
+    {% endif %}
+    <span style="font-size:11px;color:var(--text-muted);" id="timestamp"></span>
+  </div>
+</div>
+
+<!-- Row 1: 6 KPI cards -->
+<div class="kpi-row-6">
+  <div class="kpi-card" style="--kpi-color:#06B6D4;">
+    <div class="kpi-icon" style="color:#06B6D4;">📋</div>
+    <div class="kpi-value" style="color:#06B6D4;">{{ stats.total_indents }}</div>
+    <div class="kpi-label">Total Indents</div>
+    <div class="kpi-bar" style="background:#06B6D4;"></div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#F59E0B;">
+    <div class="kpi-icon" style="color:#F59E0B;">⏳</div>
+    <div class="kpi-value" style="color:#F59E0B;">{{ stats.active_indents }}</div>
+    <div class="kpi-label">Active WIP</div>
+    <div class="kpi-bar" style="background:#F59E0B;"></div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#EF4444;">
+    <div class="kpi-icon" style="color:#EF4444;">🚨</div>
+    <div class="kpi-value" style="color:#EF4444;">{{ stats.overdue_indents }}</div>
+    <div class="kpi-label">Overdue</div>
+    <div class="kpi-bar" style="background:#EF4444;"></div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#10B981;">
+    <div class="kpi-icon" style="color:#10B981;">✅</div>
+    <div class="kpi-value" style="color:#10B981;">{{ stats.approved }}</div>
+    <div class="kpi-label">QA Approved</div>
+    <div class="kpi-bar" style="background:#10B981;"></div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#A78BFA;">
+    <div class="kpi-icon" style="color:#A78BFA;">🌊</div>
+    <div class="kpi-value" style="color:#A78BFA;">{{ stats.wash_pending }}</div>
+    <div class="kpi-label">Wash Pending</div>
+    <div class="kpi-bar" style="background:#A78BFA;"></div>
+  </div>
+  <div class="kpi-card" style="--kpi-color:#34D399;">
+    <div class="kpi-icon" style="color:#34D399;">📦</div>
+    <div class="kpi-value" style="color:#34D399;">{{ stats.dispatched }}</div>
+    <div class="kpi-label">Dispatched</div>
+    <div class="kpi-bar" style="background:#34D399;"></div>
+  </div>
+</div>
+
+<!-- Row 2: OTIF + Delay Summary -->
+<div class="kpi-row-3" style="padding-top:0;">
+  {% set sotif = stats.sample_otif %}
+  {% set sc = '#10B981' if sotif.otif_pct >= 80 else ('#F59E0B' if sotif.otif_pct >= 60 else '#EF4444') %}
+  <div class="otif-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Sample OTIF</div>
+        <div style="font-size:36px;font-weight:700;line-height:1;color:{{ sc }};">{{ sotif.otif_pct }}%</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">On Time In Full</div>
+      </div>
+      <span class="otif-pill {{ 'otif-good' if sotif.otif_pct >= 80 else ('otif-mid' if sotif.otif_pct >= 60 else 'otif-bad') }}">{{ '✓ GOOD' if sotif.otif_pct >= 80 else ('⚠ MID' if sotif.otif_pct >= 60 else '✗ LOW') }}</span>
+    </div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ sotif.otif_pct }}%;background:{{ sc }};"></div></div>
+    <div class="stat-row">
+      <div class="stat-mini">On Time: <span>{{ sotif.on_time }}</span></div>
+      <div class="stat-mini">Completed: <span>{{ sotif.total }}</span></div>
+      <div class="stat-mini">Late: <span style="color:var(--danger);">{{ sotif.delayed }}</span></div>
+    </div>
+  </div>
+
+  {% set wotif = stats.wash_otif %}
+  {% set wc = '#10B981' if wotif.otif_pct >= 80 else ('#F59E0B' if wotif.otif_pct >= 60 else '#EF4444') %}
+  <div class="otif-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Wash OTIF</div>
+        <div style="font-size:36px;font-weight:700;line-height:1;color:{{ wc }};">{{ wotif.otif_pct }}%</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Wash On Time In Full</div>
+      </div>
+      <span class="otif-pill {{ 'otif-good' if wotif.otif_pct >= 80 else ('otif-mid' if wotif.otif_pct >= 60 else 'otif-bad') }}">{{ '✓ GOOD' if wotif.otif_pct >= 80 else ('⚠ MID' if wotif.otif_pct >= 60 else '✗ LOW') }}</span>
+    </div>
+    <div class="otif-bar-bg"><div class="otif-bar-fg" style="width:{{ wotif.otif_pct }}%;background:{{ wc }};"></div></div>
+    <div class="stat-row">
+      <div class="stat-mini">Pass: <span style="color:var(--success);">{{ stats.wash_pass }}</span></div>
+      <div class="stat-mini">Fail/Rework: <span style="color:var(--danger);">{{ stats.wash_fail }}</span></div>
+      <div class="stat-mini">Pending: <span>{{ stats.wash_pending }}</span></div>
+    </div>
+  </div>
+
+  <div class="otif-card">
+    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Delay Breakdown</div>
+    <div style="display:flex;gap:20px;align-items:center;">
+      <div>
+        <div style="font-size:28px;font-weight:700;color:#A78BFA;line-height:1;">{{ stats.avg_approval_days }}<span style="font-size:12px;color:var(--text-muted);">d</span></div>
+        <div style="font-size:10px;color:var(--text-muted);">Avg QA Approval</div>
+      </div>
+      <div style="flex:1;">
+        {% set db = stats.delay_breakdown %}
+        <div style="display:grid;gap:4px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#10B981;">● On Time</span><b>{{ db.on_time }}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#EAB308;">● Warning</span><b>{{ db.warning }}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#F59E0B;">● Overdue</span><b>{{ db.overdue }}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#EF4444;">● Critical</span><b>{{ db.critical }}</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: Charts -->
+<div class="two-col section-padding" style="padding-top:0;">
+  <div class="card">
+    <div class="card-header"><span style="color:#A78BFA;">⏳</span> WIP Stage Pipeline</div>
+    <div class="card-body"><canvas id="stageChart" height="185"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span style="color:#F59E0B;">🕐</span> Delay Distribution</div>
+    <div class="card-body"><canvas id="delayChart" height="185"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 4: Style Status + Recent Activity -->
+<div class="two-col section-padding" style="padding-top:0;">
+  <div class="card">
+    <div class="card-header"><span style="color:#F472B6;">📊</span> Style Status</div>
+    <div class="card-body">
+      {% set scols = {'Design Intent':'#06B6D4','Sampling':'#F59E0B','QA':'#A78BFA','Approved':'#10B981','Dispatched':'#34D399','Cancelled':'#EF4444'} %}
+      {% set ts = stats.style_status.values()|sum or 1 %}
+      {% for st, cnt in stats.style_status.items() %}
+      {% set col = scols.get(st, '#94A3B8') %}
+      <div class="progress-row">
+        <span class="progress-label">{{ st }}</span>
+        <div class="progress-bar-bg"><div class="progress-bar-fg" style="width:{{ [cnt*100//ts,4]|max if cnt else 0 }}%;background:{{ col }};"></div></div>
+        <span class="progress-count" style="color:{{ col }};">{{ cnt }}</span>
+      </div>
+      {% endfor %}
+      {% if not stats.style_status %}<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">No data yet</div>{% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span style="color:#4A7CFF;">🕐</span> Recent Activity</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Sample</th><th>Movement</th><th>Status</th><th>By</th><th>Time</th></tr></thead>
+        <tbody>
+          {% for m in stats.recent_movements %}
+          <tr>
+            <td><span style="color:var(--accent);font-weight:600;">{{ m.sample_code }}</span></td>
+            <td style="font-size:11px;color:var(--text-muted);">{{ m.from_dept or '—' }} → {{ m.to_dept }}</td>
+            <td>{% set sc2={'Approved':'badge-green','Rejected':'badge-danger','In Progress':'badge-warning','QA Hold':'badge-warning','Pending':'badge-muted','Dispatched':'badge-teal'} %}<span class="badge {{ sc2.get(m.status,'badge-muted') }}">{{ m.status }}</span></td>
+            <td style="color:var(--text-muted);font-size:11px;">{{ m.user_name or '—' }}</td>
+            <td style="color:var(--text-muted);font-size:10px;">{{ m.timestamp[:16] if m.timestamp else '' }}</td>
+          </tr>
+          {% endfor %}
+          {% if not stats.recent_movements %}<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No recent activity</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+document.getElementById('timestamp').textContent='Last updated: '+new Date().toLocaleTimeString();
+const wip={{stats.wip_summary|tojson}};
+const stageKeys=['pattern','cutting','sewing','washing','finishing','dispatched'];
+const stageLabels=['Pattern','Cutting','Sewing','Washing','Finishing','Dispatched'];
+const stageColors=['#A78BFA','#F97316','#06B6D4','#3B82F6','#10B981','#34D399'];
+new Chart(document.getElementById('stageChart'),{
+  type:'bar',
+  data:{labels:stageLabels,datasets:[{label:'Styles',data:stageKeys.map(k=>(wip[k]||{styles:0}).styles),backgroundColor:stageColors,borderRadius:5,borderSkipped:false}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#94A3B8',font:{size:10}},grid:{color:'#1C2A40'}},y:{ticks:{color:'#94A3B8',stepSize:1},grid:{color:'#1C2A40'},beginAtZero:true}}}
+});
+const db={{stats.delay_breakdown|tojson}};
+new Chart(document.getElementById('delayChart'),{
+  type:'doughnut',
+  data:{labels:['On Time','Warning','Overdue','Critical','No Target'],datasets:[{data:[db.on_time||0,db.warning||0,db.overdue||0,db.critical||0,db.no_target||0],backgroundColor:['#10B981','#EAB308','#F59E0B','#EF4444','#475569'],borderWidth:0,hoverOffset:4}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#94A3B8',font:{size:11},boxWidth:12,padding:10}}}}
+});
+</script>
+{% endblock %}

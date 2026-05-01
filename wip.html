@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}WIP Report — PLM{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1 class="page-title">WIP Report</h1>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <select class="search-input" style="width:120px;" id="wip-type" onchange="filterWIP()">
+      <option value="">All Types</option>
+      <option value="dev">Development</option>
+      <option value="sms">SMS</option>
+    </select>
+    <select class="search-input" style="width:160px;" id="wip-customer" onchange="filterWIP()">
+      <option value="">All Customers</option>
+      {% for b in brands %}<option>{{ b.name }}</option>{% endfor %}
+    </select>
+    <select class="search-input" style="width:150px;" id="wip-merchant" onchange="filterWIP()">
+      <option value="">All Merchants</option>
+      {% for m in merchants %}<option>{{ m.name }}</option>{% endfor %}
+    </select>
+  </div>
+</div>
+
+<!-- Toggle between Dev / SMS -->
+<div class="tab-strip" style="padding:0 24px; margin-bottom:0;">
+  <button class="tab-btn active" id="tab-dev" onclick="switchTab('dev')">Development Samples</button>
+  <button class="tab-btn" id="tab-sms" onclick="switchTab('sms')">SMS Samples</button>
+</div>
+
+<!-- ── Stage Summary Cards ── -->
+<div id="stage-cards" style="padding:16px 24px 8px;">
+  {% macro stage_card(label, key, color, icon) %}
+  {% set data = wip_summary[key] %}
+  <div class="wip-stage-card" style="border-top:3px solid {{ color }};">
+    <div style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px;">{{ icon }} {{ label }}</div>
+    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+      <div>
+        <div style="font-size:26px; font-weight:700; color:{{ color }}; line-height:1;">{{ data.styles }}</div>
+        <div style="font-size:10px; color:var(--text-muted);">Styles</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:22px; font-weight:600; color:{{ color }}; line-height:1;">{{ data.pcs }}</div>
+        <div style="font-size:10px; color:var(--text-muted);">PCS</div>
+      </div>
+    </div>
+  </div>
+  {% endmacro %}
+
+  <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
+    {{ stage_card('Pattern', 'pattern', '#A78BFA', 'U/P') }}
+    {{ stage_card('Cutting', 'cutting', '#F97316', 'U/C') }}
+    {{ stage_card('Sewing', 'sewing', '#06B6D4', 'U/S') }}
+    {{ stage_card('Washing', 'washing', '#3B82F6', 'U/W') }}
+    {{ stage_card('Finishing', 'finishing', '#10B981', 'U/F') }}
+    {{ stage_card('Dispatched', 'dispatched', '#34D399', '✓') }}
+  </div>
+</div>
+
+<!-- Total WIP badge -->
+<div style="padding:0 24px 8px; display:flex; align-items:center; gap:16px;">
+  <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:8px 20px; display:flex; gap:16px; align-items:center;">
+    <span style="font-size:12px; color:var(--text-muted);">TOTAL WIP</span>
+    <span style="font-size:24px; font-weight:700; color:var(--warning);">{{ wip_summary.total_pcs }}</span>
+    <span style="font-size:12px; color:var(--text-muted);">PCS &nbsp;|&nbsp;</span>
+    <span style="font-size:20px; font-weight:600; color:var(--accent2);">{{ wip_summary.total_styles }}</span>
+    <span style="font-size:12px; color:var(--text-muted);">Styles</span>
+  </div>
+  <input class="search-input" style="width:260px;" id="wip-search" placeholder="🔍 Search style, customer..." oninput="filterWIPTable()">
+</div>
+
+<!-- ── WIP Table ── -->
+<div class="table-container" style="margin:0 24px 16px;">
+  <table class="data-table" id="wip-table">
+    <thead>
+      <tr>
+        <th>Style No</th><th>Indent No</th><th>Indent RCV</th><th>Dispatch Target</th>
+        <th>Merchant</th><th>Customer</th><th>Sample Type</th><th>Color</th>
+        <th>WIP Stage</th><th>QTY</th><th>Delay</th><th>Update Stage</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in wip_rows %}
+      {% set stage_colors = {
+        'U/P':'#A78BFA','U/C':'#F97316','U/S':'#06B6D4',
+        'U/W':'#3B82F6','U/F':'#10B981','Dispatched':'#34D399'
+      } %}
+      {% set sc = stage_colors.get(r.wip_stage, '#94A3B8') %}
+      <tr data-customer="{{ r.customer|lower }}" data-merchant="{{ r.merchant|lower }}"
+          data-style="{{ r.style_code|lower }}" data-stage="{{ r.wip_stage }}"
+          data-stype="{{ r.sample_group }}">
+        <td style="color:var(--accent); font-weight:600;">{{ r.style_code or '—' }}</td>
+        <td style="color:var(--accent2); font-weight:600;">{{ r.indent_no or '—' }}</td>
+        <td style="font-size:11px; color:var(--text-muted);">{{ r.indent_date or '—' }}</td>
+        <td style="font-size:11px; {% if r.is_overdue %}color:var(--danger);{% else %}color:var(--text-muted);{% endif %}">
+          {{ r.target_dispatch or '—' }}{% if r.is_overdue %} ⚠{% endif %}
+        </td>
+        <td>{{ r.merchant or '—' }}</td>
+        <td>{{ r.customer or '—' }}</td>
+        <td>
+          {% if r.sample_type in ['SMS','PRE-SMS','LF Sample','Size Set','Sealer','Gold Seal Sample','Photoshoot','Presentation'] %}
+          <span class="badge badge-purple">{{ r.sample_type }}</span>
+          {% else %}
+          <span class="badge badge-blue">{{ r.sample_type }}</span>
+          {% endif %}
+        </td>
+        <td>{{ r.color or '—' }}</td>
+        <td>
+          <span style="background:{{ sc }}22; color:{{ sc }}; padding:2px 10px; border-radius:4px; font-size:11px; font-weight:700;">
+            {{ r.wip_stage }}
+          </span>
+        </td>
+        <td style="font-weight:600;">{{ r.qty }}</td>
+        <td>
+          {% if r._delay %}
+          <span class="delay-{{ r._delay.status }}">{{ r._delay.label }}</span>
+          {% elif r.is_overdue %}
+          <span class="delay-overdue">Overdue</span>
+          {% else %}
+          <span class="delay-no_target">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="/wip/update-stage" style="display:flex;gap:4px;align-items:center;">
+            <input type="hidden" name="indent_id" value="{{ r.id }}">
+            <select name="wip_stage" class="search-input" style="width:90px;font-size:10px;padding:3px 4px;" onchange="this.form.submit()">
+              {% for stage in [('U/P','Pattern'),('U/C','Cutting'),('U/S','Sewing'),('U/W','Washing'),('U/F','Finishing'),('Dispatched','Done')] %}
+              <option value="{{ stage[0] }}" {% if r.wip_stage == stage[0] %}selected{% endif %}>{{ stage[0] }} {{ stage[1] }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+.wip-stage-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+</style>
+
+<script>
+let currentTab = 'dev';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-dev').classList.toggle('active', tab === 'dev');
+  document.getElementById('tab-sms').classList.toggle('active', tab === 'sms');
+  filterWIPTable();
+}
+
+function filterWIPTable() {
+  const search = document.getElementById('wip-search').value.toLowerCase();
+  const customer = document.getElementById('wip-customer').value.toLowerCase();
+  const merchant = document.getElementById('wip-merchant').value.toLowerCase();
+
+  const rows = document.querySelectorAll('#wip-table tbody tr');
+  rows.forEach(r => {
+    // data-stype contains 'dev' or 'sms' from sample_group field
+    const sgroup = (r.dataset.stype || '').toLowerCase();
+    const matchTab = currentTab === 'all' || sgroup === currentTab;
+    const matchSearch = !search || (r.dataset.style||'').includes(search) || (r.dataset.customer||'').includes(search);
+    const matchCustomer = !customer || (r.dataset.customer||'').toLowerCase() === customer;
+    const matchMerchant = !merchant || (r.dataset.merchant||'').toLowerCase() === merchant;
+    r.style.display = (matchTab && matchSearch && matchCustomer && matchMerchant) ? '' : 'none';
+  });
+}
+
+function filterWIP() { filterWIPTable(); }
+
+// Init
+filterWIPTable();
+</script>
+{% endblock %}

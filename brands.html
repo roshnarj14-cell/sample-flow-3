@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Brands — PLM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Brand Master</h1>
+  <button class="btn btn-primary" onclick="openModal('add-modal')">+ Add Brand</button>
+</div>
+<div class="table-container" style="margin:12px 24px;">
+  <table class="data-table">
+    <thead><tr><th>Code</th><th>Name</th><th>Country</th><th>Contact</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for b in brands %}
+      <tr>
+        <td style="color:var(--accent); font-weight:600;">{{ b.code }}</td>
+        <td>{{ b.name }}</td><td>{{ b.country or '—' }}</td><td>{{ b.contact or '—' }}</td><td>{{ b.email or '—' }}</td>
+        <td><span class="badge {% if b.active %}badge-green{% else %}badge-danger{% endif %}">{% if b.active %}Active{% else %}Inactive{% endif %}</span></td>
+        <td style="display:flex;gap:4px;">
+          <button class="btn btn-muted btn-sm" onclick="editBrand({{ b|tojson|e }})">✏ Edit</button>
+          {% if user.role == 'Admin' %}
+          <form method="post" action="/brands/delete" style="display:inline;" onsubmit="return confirm('Deactivate this brand?')">
+            <input type="hidden" name="brand_id" value="{{ b.id }}">
+            <button class="btn btn-sm" style="background:#3a0000;color:#FF4444;border:1px solid #FF4444;" type="submit">🗑</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="add-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header"><span>New Brand</span><button class="modal-close" onclick="closeModal('add-modal')">✕</button></div>
+    <div class="modal-body">
+      <form method="post" action="/brands/create" id="add-form">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Code *</label><input class="form-control" name="code" required></div>
+          <div class="form-group"><label class="form-label">Name *</label><input class="form-control" name="name" required></div>
+          <div class="form-group"><label class="form-label">Country</label><input class="form-control" name="country"></div>
+          <div class="form-group"><label class="form-label">Contact</label><input class="form-control" name="contact"></div>
+          <div class="form-group full"><label class="form-label">Email</label><input class="form-control" name="email" type="email"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('add-form').submit()">Save Brand</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header"><span>Edit Brand</span><button class="modal-close" onclick="closeModal('edit-modal')">✕</button></div>
+    <div class="modal-body">
+      <form method="post" action="/brands/update" id="edit-form">
+        <input type="hidden" name="brand_id" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group"><label class="form-label">Code *</label><input class="form-control" name="code" id="edit-code" required></div>
+          <div class="form-group"><label class="form-label">Name *</label><input class="form-control" name="name" id="edit-name" required></div>
+          <div class="form-group"><label class="form-label">Country</label><input class="form-control" name="country" id="edit-country"></div>
+          <div class="form-group"><label class="form-label">Contact</label><input class="form-control" name="contact" id="edit-contact"></div>
+          <div class="form-group full"><label class="form-label">Email</label><input class="form-control" name="email" id="edit-email" type="email"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-muted" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="document.getElementById('edit-form').submit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+<style>
+.btn-danger{background:var(--danger);color:#fff;border:none;}
+.btn-danger:hover{background:#c0392b;}
+.btn-success{background:var(--success);color:#fff;border:none;}
+.btn-success:hover{background:#0d9e6e;}
+</style>
+<script>
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function editBrand(b){
+  document.getElementById('edit-id').value=b.id;
+  document.getElementById('edit-code').value=b.code;
+  document.getElementById('edit-name').value=b.name;
+  document.getElementById('edit-country').value=b.country||'';
+  document.getElementById('edit-contact').value=b.contact||'';
+  document.getElementById('edit-email').value=b.email||'';
+  openModal('edit-modal');
+}
+</script>
+{% endblock %}

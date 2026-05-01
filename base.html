@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SampleFlow PLM{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .alert-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:var(--danger);color:white;border-radius:9px;font-size:10px;font-weight:700;margin-left:auto;}
+    .alert-badge.warn{background:var(--warning);color:#1a1a1a;}
+    .otif-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+    .otif-good{background:#0d2e1e;color:#10B981;border:1px solid #10B981;}
+    .otif-mid{background:#2e1e00;color:#F59E0B;border:1px solid #F59E0B;}
+    .otif-bad{background:#2e0d0d;color:#EF4444;border:1px solid #EF4444;}
+    .delay-critical{background:#3a0000;color:#FF4444;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;}
+    .delay-overdue{background:#2e1e00;color:#F59E0B;padding:2px 8px;border-radius:4px;font-size:11px;}
+    .delay-warning{background:#1e1e00;color:#EAB308;padding:2px 8px;border-radius:4px;font-size:11px;}
+    .delay-on_time{background:#0d2e1e;color:#10B981;padding:2px 8px;border-radius:4px;font-size:11px;}
+    .delay-delayed{background:#2e1e00;color:#F59E0B;padding:2px 8px;border-radius:4px;font-size:11px;}
+    .delay-no_target,.delay-no_data{background:var(--bg-card);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:11px;}
+    .chart-wrap{position:relative;height:200px;}
+    .alert-item{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;margin-bottom:8px;border-left:3px solid transparent;}
+    .alert-item.critical{background:#1a0808;border-left-color:#EF4444;}
+    .alert-item.warning{background:#1a1208;border-left-color:#F59E0B;}
+    .alert-item.info{background:#0a1a2a;border-left-color:#3B82F6;}
+    .alert-icon{font-size:18px;margin-top:1px;flex-shrink:0;}
+    .alert-title{font-size:13px;font-weight:600;}
+    .alert-msg{font-size:11px;color:var(--text-muted);margin-top:2px;}
+    .kpi-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:16px 24px 8px;}
+    .kpi-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 24px 12px;}
+    .kpi-row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:0 24px 12px;}
+    .otif-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;}
+    .otif-card .big{font-size:36px;font-weight:700;line-height:1;}
+    .otif-card .label{font-size:11px;color:var(--text-muted);margin-top:4px;}
+    .otif-bar-bg{height:6px;background:var(--border);border-radius:3px;margin-top:10px;overflow:hidden;}
+    .otif-bar-fg{height:100%;border-radius:3px;transition:width 0.5s;}
+    .stat-row{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;}
+    .stat-mini{font-size:11px;color:var(--text-muted);}
+    .stat-mini span{color:var(--text);font-weight:600;}
+    .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  </style>
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-box" style="background:linear-gradient(135deg,#0E7C7B,#0a5a5a);display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:8px;flex-shrink:0;">
+        <span style="font-size:17px;color:white;font-weight:800;letter-spacing:-1px;font-family:'DM Sans',sans-serif;">SF</span>
+      </div>
+      <div class="logo-text">
+        <strong>SampleFlow</strong>
+        <span>Apparel PLM</span>
+      </div>
+    </div>
+    <div class="user-strip">
+      <div class="user-avatar">{{ user.full_name[:2].upper() }}</div>
+      <div class="user-info">
+        <strong>{{ user.full_name }}</strong>
+        <span>{{ user.role }}</span>
+      </div>
+    </div>
+    <a href="/dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
+      <span class="icon">🏠</span> Dashboard
+    </a>
+    <div class="nav-section-label">Sampling Workflow</div>
+    <a href="/indent" class="nav-item {% if active == 'indent' %}active{% endif %}">
+      <span class="icon">📋</span> Indents
+    </a>
+    <a href="/wip" class="nav-item {% if active == 'wip' %}active{% endif %}">
+      <span class="icon">⏳</span> WIP Report
+    </a>
+    <a href="/output" class="nav-item {% if active == 'output' %}active{% endif %}">
+      <span class="icon">📤</span> Output Report
+    </a>
+    <div class="nav-section-label">Product Dev</div>
+    <a href="/styles" class="nav-item {% if active == 'styles' %}active{% endif %}">
+      <span class="icon">🎨</span> Styles
+    </a>
+    <a href="/samples" class="nav-item {% if active == 'samples' %}active{% endif %}">
+      <span class="icon">👕</span> Samples
+    </a>
+    <a href="/wash" class="nav-item {% if active == 'wash' %}active{% endif %}">
+      <span class="icon">🌊</span> Wash Tracking
+    </a>
+    <a href="/qa" class="nav-item {% if active == 'qa' %}active{% endif %}">
+      <span class="icon">🔍</span> QA
+    </a>
+    <a href="/dispatch" class="nav-item {% if active == 'dispatch' %}active{% endif %}">
+      <span class="icon">📦</span> Dispatch
+    </a>
+    <div class="nav-section-label">Intelligence</div>
+    <a href="/alerts" class="nav-item {% if active == 'alerts' %}active{% endif %}">
+      <span class="icon">🔔</span> Alerts
+      <span class="alert-badge" id="alert-count-badge" style="display:none;">0</span>
+    </a>
+    <a href="/analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
+      <span class="icon">📊</span> Analytics
+    </a>
+    {% if user.role in ['Admin', 'Merchandiser'] %}
+    <div class="nav-section-label">Admin</div>
+    <a href="/brands" class="nav-item {% if active == 'brands' %}active{% endif %}">
+      <span class="icon">🏷</span> Brands
+    </a>
+    <a href="/merchants" class="nav-item {% if active == 'merchants' %}active{% endif %}">
+      <span class="icon">👤</span> Merchants
+    </a>
+    {% endif %}
+    {% if user.role in ['Admin', 'Merchandiser', 'Designer'] %}
+    <a href="/reports" class="nav-item {% if active == 'reports' %}active{% endif %}">
+      <span class="icon">📄</span> Reports
+    </a>
+    {% endif %}
+    {% if user.role == 'Admin' %}
+    <a href="/users" class="nav-item {% if active == 'users' %}active{% endif %}">
+      <span class="icon">🔐</span> Users
+    </a>
+    {% endif %}
+    <div class="nav-logout">
+      <form action="/logout" method="post">
+        <button class="logout-btn" type="submit">↩ &nbsp; Sign Out</button>
+      </form>
+    </div>
+  </nav>
+  <div class="main-content">
+    <div class="page-body" id="page-body">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+  <script>
+    fetch('/api/alert-count').then(r=>r.json()).then(data=>{
+      const b=document.getElementById('alert-count-badge');
+      if(data.total>0){b.textContent=data.total;b.style.display='inline-flex';if(data.critical>0)b.classList.remove('warn');else b.classList.add('warn');}
+    }).catch(()=>{});
+  </script>
+</body>
+</html>
